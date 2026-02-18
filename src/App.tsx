@@ -478,12 +478,15 @@ export function App() {
         )}
       </main>
 
-      {/* Footer */}
+      {/* Footer — Legal disclaimer */}
       <footer className="fixed bottom-0 w-full bg-white border-t border-slate-200 py-2 z-10">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p className="text-xs text-slate-400">
             eFPear CertiCalc v2.2 · {dataSource === 'uploaded' ? activeCert.codigo : `Demo: ${activeCert.codigo}`}
             {' '}{activeCert.nombre} · GDPR by design · 100% local
+          </p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Herramienta orientativa de uso privado · Sin valor legal ni administrativo · Consulte siempre normativa vigente
           </p>
         </div>
       </footer>

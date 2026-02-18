@@ -34,6 +34,16 @@ export type { EligibilityResult, TrainerProfile, BoeRequirements };
 /** Horas de experiencia docente que eximen del titulo docente */
 const HORAS_EXENCION_DOCENTE = 600;
 
+/**
+ * Aviso legal que debe acompanar todo resultado de elegibilidad.
+ * OBLIGATORIO mostrar en UI.
+ */
+export const LEGAL_DISCLAIMER = {
+  titulo: 'Resultado orientativo — sin valor legal',
+  texto: 'Esta herramienta realiza una estimacion orientativa basada en la interpretacion automatizada de los requisitos publicados en el BOE. No constituye certificacion, habilitacion ni resolucion administrativa. La determinacion oficial de la elegibilidad corresponde exclusivamente al organo competente de la Administracion. Consulte siempre la normativa vigente y la entidad acreditadora antes de tomar decisiones.',
+  base_legal: 'Basado en RD que regula cada Certificado de Profesionalidad y normativa general de formacion profesional para el empleo.',
+} as const;
+
 /** Niveles de idioma ordenados (para comparacion) */
 const NIVELES_IDIOMA = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
@@ -116,7 +126,11 @@ export function evaluarElegibilidad(
     ? `Elegible para ${requisitos.codigoMF} (${requisitos.nombreMF}).`
     : `Elegible con condiciones para ${requisitos.codigoMF}: necesita acreditar competencia docente.`;
 
-  return { status, mensajes, resumen };
+  return {
+    status,
+    mensajes,
+    resumen,
+  };
 }
 
 // ============================================

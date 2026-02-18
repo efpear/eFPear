@@ -9,6 +9,7 @@ import {
   evaluarElegibilidad,
   GOLDEN_CASE_A_REQUIREMENTS,
   GOLDEN_CASE_B_REQUIREMENTS,
+  LEGAL_DISCLAIMER,
 } from '../engine/eligibilityEngine';
 import type {
   TrainerProfile,
@@ -85,14 +86,30 @@ export function EligibilityCheck() {
 
   const statusLabel = result
     ? result.status === 'ELIGIBLE'
-      ? 'ELEGIBLE'
+      ? 'ELEGIBLE (orientativo)'
       : result.status === 'CONDICIONAL'
-        ? 'CONDICIONAL'
-        : 'NO ELEGIBLE'
+        ? 'CONDICIONAL (orientativo)'
+        : 'NO ELEGIBLE (orientativo)'
     : '';
 
   return (
     <div className="space-y-6">
+      {/* Legal disclaimer banner */}
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+        <div className="flex items-start gap-3">
+          <span className="text-lg flex-shrink-0">&#x2696;&#xFE0F;</span>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-800">Herramienta orientativa</h3>
+            <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+              eFPear CertiCalc es un proyecto privado de uso personal. Los resultados son estimaciones
+              basadas en la interpretacion automatizada de normativa publicada en el BOE y
+              <strong> no tienen valor legal ni administrativo</strong>. La habilitacion oficial la determina
+              exclusivamente el organo competente. Consulte siempre la normativa vigente.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* MF Selector */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
         <h2 className="text-base font-semibold text-slate-900 mb-4">Seleccionar modulo formativo</h2>
@@ -255,6 +272,16 @@ export function EligibilityCheck() {
 
           {/* Messages detail */}
           <div className="p-6 space-y-3">
+            {/* Legal disclaimer on result */}
+            <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+              <div className="flex items-start gap-2">
+                <span className="text-xs flex-shrink-0">&#x2696;&#xFE0F;</span>
+                <div>
+                  <div className="text-xs font-medium text-slate-700">{LEGAL_DISCLAIMER.titulo}</div>
+                  <div className="text-xs text-slate-500 mt-0.5 leading-relaxed">{LEGAL_DISCLAIMER.texto}</div>
+                </div>
+              </div>
+            </div>
             {result.mensajes.map((msg, i) => (
               <div
                 key={i}
