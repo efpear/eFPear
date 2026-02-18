@@ -120,3 +120,11 @@ export type {
   EspacioFormativo,
   AnexoIVOptions,
 } from './anexoTemplates';
+
+// Eligibility Engine v1.0
+export {
+  evaluarElegibilidad,
+  GOLDEN_CASE_A_REQUIREMENTS,
+  GOLDEN_CASE_B_REQUIREMENTS,
+} from './eligibilityEngine';
+export type { EligibilityResult, TrainerProfile, BoeRequirements } from './eligibilityEngine';

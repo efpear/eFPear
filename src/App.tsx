@@ -23,6 +23,7 @@ import { CatalogBrowser } from './components/CatalogBrowser';
 import { NotionPlanning } from './components/NotionPlanning';
 import { NotionConfigBar } from './components/NotionConfigBar';
 import type { FichaSEPE } from './engine/sepeParser';
+import { EligibilityCheck } from './components/EligibilityCheck';
 import type { Certificado } from './types';
 
 // ============================================
@@ -123,7 +124,7 @@ const ISLA_OPTIONS: { value: IslaCanaria; label: string }[] = [
   { value: 'el_hierro', label: 'El Hierro' },
 ];
 
-type Tab = 'calendario' | 'pedagogica';
+type Tab = 'elegibilidad' | 'calendario' | 'pedagogica';
 type DataSource = 'demo' | 'uploaded';
 
 // ============================================
@@ -234,6 +235,7 @@ export function App() {
       <nav className="bg-white border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-6">
           {[
+            { id: 'elegibilidad' as Tab, icon: '🚦', label: 'Elegibilidad' },
             { id: 'calendario' as Tab, icon: '📅', label: 'Planificación temporal' },
             { id: 'pedagogica' as Tab, icon: '📚', label: 'Programación didáctica' },
           ].map(t => (
@@ -248,7 +250,9 @@ export function App() {
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20">
-        {tab === 'calendario' ? (
+        {tab === 'elegibilidad' ? (
+          <EligibilityCheck />
+        ) : tab === 'calendario' ? (
           <div className="space-y-4">
             {/* PDF Upload — collapsible */}
             {/* Catalog Browser OR single ficha upload */}
