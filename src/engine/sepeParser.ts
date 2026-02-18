@@ -375,10 +375,10 @@ export async function extractTextFromPDF(file: File): Promise<string> {
       pageLines.push(currentLine.map(it => it.text).join(' '));
     }
 
-    pages.push(pageLines.join('\n'));
+    pages.push(pageLines.join(String.fromCharCode(10)));
   }
 
-  return pages.join('\n\n--- PAGE BREAK ---\n\n');
+  return pages.join(String.fromCharCode(10) + String.fromCharCode(10) + '--- PAGE BREAK ---' + String.fromCharCode(10) + String.fromCharCode(10));
 }
 
 // ============================================

@@ -83,8 +83,7 @@ function extractPageText(items: Array<{ str: string; transform: number[] }>): st
     pageLines.push(currentLine.map(it => it.text).join(' '));
   }
 
-  return pageLines.join('
-');
+  return pageLines.join(String.fromCharCode(10));
 }
 
 // ============================================
@@ -185,7 +184,7 @@ export async function parseBulkPDF(
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i];
     try {
-      const combinedText = chunk.pages.join('\n');
+      const combinedText = chunk.pages.join(String.fromCharCode(10));
       const ficha = parseFichaTexto(combinedText);
 
       // If parser didn't extract the code, use the one from the boundary detection
