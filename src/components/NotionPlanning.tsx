@@ -12,6 +12,8 @@ interface NotionPlanningProps {
   metricas: {
     totalModulos: number;
     totalHoras: number;
+    horasFormativas: number;
+    horasPracticas: number;
     totalSesiones: number;
     totalDiasLectivos: number;
     fechaInicio: string;
@@ -77,7 +79,13 @@ export function NotionPlanning({ modulosCascada, modulos, metricas, coherencia }
         <div className="flex items-center gap-4 text-xs text-slate-500">
           <span>{metricas.totalModulos} m\u00F3dulos</span>
           <span className="text-slate-300">|</span>
-          <span>{metricas.totalHoras}h totales</span>
+          <span>{metricas.horasFormativas}h formativas</span>
+          {metricas.horasPracticas > 0 && (
+            <>
+              <span className="text-slate-300">+</span>
+              <span className="text-amber-500">{metricas.horasPracticas}h pr\u00E1cticas</span>
+            </>
+          )}
           <span className="text-slate-300">|</span>
           <span>{metricas.totalSesiones} sesiones</span>
           <span className="text-slate-300">|</span>
@@ -167,7 +175,14 @@ function TablaView({ modulosCascada, modulos, selectedMod, onSelect }: {
             <div className="col-span-4 px-4 py-3 flex items-center gap-3">
               <span className={`w-2 h-2 rounded-full flex-shrink-0 ${color.dot}`} />
               <div className="min-w-0">
-                <div className="text-sm font-medium text-slate-900 truncate">{mod.codigo}</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-slate-900 truncate">{mod.codigo}</span>
+                  {/^MP\d/i.test(mod.codigo) && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-600 border border-amber-200">
+                      Pr\u00E1cticas \u00B7 empresa
+                    </span>
+                  )}
+                </div>
                 <div className="text-xs text-slate-500 truncate">{info?.titulo || ''}</div>
               </div>
             </div>
