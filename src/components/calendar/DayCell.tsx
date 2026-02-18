@@ -3,7 +3,6 @@
  * Celda individual del calendario
  */
 
-import React from 'react';
 import type { FechaISO, ModuloConSesiones } from '@/types';
 import { obtenerDia, esFinDeSemana } from '@/utils/date-utils';
 
@@ -35,7 +34,7 @@ export function DayCell({ fecha, modulos, festivos, esMesActual, isSelected = fa
     >
       <div className="flex items-center justify-between">
         <span className={`text-sm font-medium ${esFestivo ? 'text-red-600' : esFinSemana ? 'text-slate-400' : 'text-slate-700'}`}>{dia}</span>
-        {esFestivo && <span className="text-xs text-red-500" title="Festivo">\u{1F389}</span>}
+        {esFestivo && <span className="text-xs text-red-500" title="Festivo">🎉</span>}
       </div>
       {sesionesHoy.length > 0 && (
         <div className="mt-1 space-y-1">
