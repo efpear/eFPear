@@ -9,7 +9,6 @@ import { describe, it, expect } from 'vitest';
 import {
   calcularDistribucionPedagogicaConBloom,
   sugerirBloomPorNivel,
-  BLOOM_LABELS,
   METODO_POR_BLOOM,
   DEFAULT_DISTRIBUTION_CONFIG,
 } from '../distributionEngine';
@@ -17,7 +16,6 @@ import type { BloomLevel } from '../../types';
 import type { ModuloFormativo, Certificado } from '../../types';
 import {
   asignarCapacidadesAUA,
-  asignarContenidosAUA,
   procesarModuloFormativo,
   procesarCertificadoCompleto,
 } from '../curriculumEngine';
@@ -64,8 +62,8 @@ describe('Distribution Engine v1.1', () => {
       const results = Array.from({ length: 3 }, () =>
         calcularDistribucionPedagogicaConBloom(80)
       );
-      expect(results[0]).toEqual(results[1]);
-      expect(results[1]).toEqual(results[2]);
+      expect(results[0]!).toEqual(results[1]!);
+      expect(results[1]!).toEqual(results[2]!);
     });
   });
 
@@ -73,9 +71,9 @@ describe('Distribution Engine v1.1', () => {
   describe('Asignación Bloom', () => {
     it('genera Bloom progresivo automático', () => {
       const r = calcularDistribucionPedagogicaConBloom(100);
-      const blooms = r.uas.map(ua => ua.bloomLevel);
+      const blooms = r.uas.map(ua => ua!.bloomLevel);
       for (let i = 1; i < blooms.length; i++) {
-        expect(blooms[i]).toBeGreaterThanOrEqual(blooms[i - 1]);
+        expect(blooms[i]!).toBeGreaterThanOrEqual(blooms[i - 1]!);
       }
     });
 
@@ -169,8 +167,8 @@ describe('Curriculum Engine', () => {
     it('distribuye capacidades circularmente', () => {
       const result = asignarCapacidadesAUA(mockMF.capacidades, 2);
       expect(result.length).toBe(2);
-      expect(result[0].length).toBe(2); // C1, C3
-      expect(result[1].length).toBe(1); // C2
+      expect(result[0]!.length).toBe(2); // C1, C3
+      expect(result[1]!.length).toBe(1); // C2
     });
 
     it('0 capacidades → arrays vacíos', () => {
@@ -224,9 +222,9 @@ describe('Curriculum Engine', () => {
       expect(r1.uas.length).toBe(r2.uas.length);
       expect(r1.resumen).toEqual(r2.resumen);
       r1.uas.forEach((ua, i) => {
-        expect(ua.horasTotales).toBe(r2.uas[i].horasTotales);
-        expect(ua.bloomLevel).toBe(r2.uas[i].bloomLevel);
-        expect(ua.sdas.length).toBe(r2.uas[i].sdas.length);
+        expect(ua.horasTotales).toBe(r2.uas[i]!.horasTotales);
+        expect(ua.bloomLevel).toBe(r2.uas[i]!.bloomLevel);
+        expect(ua.sdas.length).toBe(r2.uas[i]!.sdas.length);
       });
     });
   });
