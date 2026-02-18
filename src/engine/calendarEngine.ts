@@ -63,7 +63,9 @@ export interface ConfiguracionCalendario {
 
 export interface MetricasPlanificacion {
   totalModulos: number;
-  totalHoras: number;
+  totalHoras: number;          // Total incluyendo prácticas
+  horasFormativas: number;     // Solo horas en centro (sin MP)
+  horasPracticas: number;      // Horas MP (en empresa)
   totalSesiones: number;
   totalDiasLectivos: number;
   fechaInicio: FechaISO;
@@ -307,6 +309,21 @@ export function calcularModulosCascada(
   let fechaSiguiente = config.fechaInicio;
 
   for (const modulo of modulos) {
+    // MP (prácticas profesionales no laborales) — se realizan en empresa,
+    // fuera del centro formativo. No computan para fechas de impartición.
+    const esPracticas = /^MP\d/i.test(modulo.codigo);
+
+    if (esPracticas) {
+      resultado.push({
+        id: modulo.id,
+        codigo: modulo.codigo,
+        titulo: modulo.titulo,
+        horasTotales: modulo.horas,
+        sesiones: [], // Sin sesiones: horas fuera de la acción formativa
+      });
+      continue;
+    }
+
     const inicio = paralelo ? config.fechaInicio : fechaSiguiente;
     const sesiones = calcularSesionesModulo(
       modulo.horas,
@@ -419,8 +436,17 @@ export function calcularMetricas(
   let totalHoras = 0;
   let horasAsignadas = 0;
 
+  let horasPracticas = 0;
+
   for (const modulo of modulos) {
+    const esPracticas = /^MP\d/i.test(modulo.codigo);
     totalHoras += modulo.horasTotales;
+
+    if (esPracticas) {
+      horasPracticas += modulo.horasTotales;
+      continue; // MP no genera sesiones — no alertar por horas sin asignar
+    }
+
     const horasMod = modulo.sesiones.reduce((acc, s) => acc + s.horas, 0);
     horasAsignadas += horasMod;
     modulo.sesiones.forEach(s => todasLasFechas.add(s.fecha));
@@ -438,6 +464,8 @@ export function calcularMetricas(
   const fechaInicio = fechasOrdenadas[0] ?? config.fechaInicio;
   const fechaFin = fechasOrdenadas[fechasOrdenadas.length - 1] ?? config.fechaInicio;
 
+  const horasFormativas = totalHoras - horasPracticas;
+
   return {
     totalModulos: modulos.length,
     totalHoras,
@@ -446,8 +474,10 @@ export function calcularMetricas(
     fechaInicio,
     fechaFin,
     horasAsignadas,
-    horasRestantes: totalHoras - horasAsignadas,
-    porcentajeCompletado: totalHoras > 0 ? Math.round((horasAsignadas / totalHoras) * 100) : 0,
+    horasRestantes: horasFormativas - horasAsignadas,
+    horasPracticas,
+    horasFormativas,
+    porcentajeCompletado: horasFormativas > 0 ? Math.round((horasAsignadas / horasFormativas) * 100) : 0,
     alertas,
   };
 }
