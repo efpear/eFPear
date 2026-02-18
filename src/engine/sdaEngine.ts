@@ -1,191 +1,256 @@
 /**
- * ============================================
- * eFPear CertiCalc - SdA Engine
- * ============================================
- * Generación automática de Situaciones de Aprendizaje (SdA)
- * con texto metodológico completo, listas para Anexo IV.
- * 
- * Consume: distributionEngine, verbsDictionary, textTemplates
- * Produce: SdA[] con todos los campos rellenos (objetivo, estrategia,
- *          desarrollo, medios, espacios, duración, CE asociados)
- * 
- * 100% determinístico.
+ * sdaEngine.ts v1.2 — Generador SdA Avanzado
+ *
+ * Genera Situaciones de Aprendizaje pedagogicamente ricas, variadas
+ * y alineadas con la normativa, listas para insercion en Anexo IV.
+ *
+ * Proceso:
+ * 1. Calcula horas disponibles (UA - evaluaciones - margen)
+ * 2. Itera generando SdAs hasta cubrir las horas
+ * 3. Selecciona estrategias por Bloom + fase (circular determinista)
+ * 4. Instancia templates con contenido y CE reales
+ *
+ * 100% deterministico: mismo input -> mismo output.
  * @module sdaEngine
  */
 
 import type {
   BloomLevel,
-  FaseSdA,
-  SdA,
-  Capacidad,
-  Criterio,
-  Contenido,
-} from '../types';
+  Fase,
+  SituacionAprendizaje,
+  SdAGeneratorConfig,
+  EstrategiaMetodologica,
+} from '../types/sda';
 
-import type { UADistribution } from './distributionEngine';
-import { METODO_POR_BLOOM, AGRUPACION_POR_METODO } from './distributionEngine';
-import { inferirBloomDeTexto } from './verbsDictionary';
-import {
-  generarEstrategia,
-  generarDesarrollo,
-  generarObjetivoSdA,
-} from './textTemplates';
+import { BLOOM_TO_STRATEGIES, getStrategiesForBloomAndPhase } from './methodologyDictionary';
+
+// Re-export types for backward compatibility
+export type { SituacionAprendizaje, SdAGeneratorConfig };
 
 // ============================================
-// CONFIGURATION
+// DEFAULTS
 // ============================================
 
-export interface SdAGenerationConfig {
-  /** Medios por defecto si no se especifican */
-  mediosDefault: string[];
-  /** Espacio formativo por defecto */
-  espacioDefault: string;
-  /** Recursos didácticos por defecto (para generarEstrategia) */
-  recursosDefault?: string;
-}
-
-export const DEFAULT_SDA_CONFIG: SdAGenerationConfig = {
-  mediosDefault: [
-    'Ordenador con conexión a Internet',
-    'Proyector / pantalla digital',
-    'Material audiovisual específico',
-    'Documentación técnica del módulo',
-  ],
-  espacioDefault: 'Aula polivalente / Aula-taller',
+const DEFAULT_CONFIG: Required<SdAGeneratorConfig> = {
+  horasEvalProceso: 0,
+  horasEvalFinal: 0,
+  margenHoras: 0,
+  duracionMinSdA: 0.5,
+  duracionMaxSdA: 4,
 };
+
+// ============================================
+// INPUT INTERFACE
+// ============================================
+
+export interface UAInput {
+  /** Horas totales de la UA */
+  horasTotales: number;
+  /** Nivel Bloom de la UA (1-5) */
+  bloom: BloomLevel;
+  /**
+   * Contenidos asignados a esta UA.
+   * Cada string es el titulo/descripcion de un bloque de contenido.
+   */
+  contenidos: string[];
+  /**
+   * Criterios de evaluacion asignados a esta UA.
+   * Cada string es el codigo CE (ej. "CE1.1")
+   */
+  criterios: string[];
+  /** Numero de la UA (para seed determinista) */
+  uaNumero?: number;
+}
 
 // ============================================
 // CORE GENERATION
 // ============================================
 
 /**
- * Genera SdAs completas para una UA, con todos los textos rellenos.
- * 
- * @param ua - Distribución de la UA (horas, Bloom, nº SdAs)
- * @param capacidades - Capacidades asignadas a esta UA
- * @param contenidos - Contenidos asignados a esta UA
- * @param config - Configuración opcional de medios/espacios
- * @returns SdA[] con textos completos
+ * Genera SdAs completas para una UA, listas para Anexo IV.
+ *
+ * @param ua - Datos de la UA (horas, Bloom, contenidos, criterios)
+ * @param config - Configuracion opcional
+ * @returns Array de SituacionAprendizaje con todos los campos rellenos
  */
-export function generarSdAsCompletas(
-  ua: UADistribution,
-  capacidades: Capacidad[],
-  contenidos: Contenido[],
-  config: SdAGenerationConfig = DEFAULT_SDA_CONFIG
-): SdA[] {
-  const criterios = capacidades.flatMap(c => c.criterios);
-  const numSdA = ua.sdasAjustadas;
-  const sdas: SdA[] = [];
+export function generarSdAsParaUA(
+  ua: UAInput,
+  config: SdAGeneratorConfig = {}
+): SituacionAprendizaje[] {
+  const cfg = { ...DEFAULT_CONFIG, ...config };
 
-  // Distribute criteria across SdAs (circular)
-  const criterioPorSda = criterios.length > 0
-    ? Math.max(1, Math.floor(criterios.length / numSdA))
-    : 0;
+  // 1. Horas disponibles para SdAs
+  const horasSdA = Math.max(
+    0,
+    ua.horasTotales - cfg.horasEvalProceso - cfg.horasEvalFinal - cfg.margenHoras
+  );
 
-  // Distribute hours
-  const duracionBase = Math.floor(ua.horasTotales / numSdA);
-  const duracionResto = ua.horasTotales - duracionBase * numSdA;
+  if (horasSdA <= 0) return [];
 
-  // Build content description string for text generation
-  const contenidoTexto = contenidos.length > 0
-    ? contenidos.map(c => c.descripcion.toLowerCase()).join(', ')
-    : 'los contenidos de la unidad';
+  // 2. Iterative generation loop
+  const sdas: SituacionAprendizaje[] = [];
+  let horasAcumuladas = 0;
+  let i = 0;
 
-  for (let i = 0; i < numSdA; i++) {
-    // Determine phase
-    let fase: FaseSdA;
-    if (numSdA === 1) fase = 'Desarrollo';
-    else if (i === 0) fase = 'Inicio';
-    else if (i === numSdA - 1) fase = 'Cierre';
-    else fase = 'Desarrollo';
+  // Circular counters for deterministic selection
+  let contenidoIdx = 0;
+  let criterioIdx = 0;
 
-    // Assign criteria (circular)
-    const criteriosAsignados: Criterio[] = [];
-    if (criterios.length > 0) {
-      const start = i * criterioPorSda;
-      for (let k = 0; k < criterioPorSda; k++) {
-        criteriosAsignados.push(criterios[(start + k) % criterios.length]);
-      }
-      // Last SdA gets remaining criteria
-      if (i === numSdA - 1) {
-        const assigned = new Set(criteriosAsignados.map(c => c.id));
-        for (const ce of criterios) {
-          if (!assigned.has(ce.id)) {
-            criteriosAsignados.push(ce);
-            assigned.add(ce.id);
-          }
-        }
+  // Strategy selection state (circular per phase)
+  const strategyCounters: Record<string, number> = {};
+
+  while (horasAcumuladas < horasSdA) {
+    // 2a. Determine phase
+    const fase = determinarFase(horasAcumuladas, horasSdA, i);
+
+    // 2b. Select strategy (circular deterministic)
+    const estrategia = seleccionarEstrategia(
+      ua.bloom, fase, strategyCounters
+    );
+
+    // 2c. Assign contenido (circular)
+    const contenido = ua.contenidos.length > 0
+      ? ua.contenidos[contenidoIdx % ua.contenidos.length]
+      : 'los contenidos de la unidad';
+    if (ua.contenidos.length > 0) contenidoIdx++;
+
+    // 2d. Assign CE (circular, 1-2 per SdA)
+    const ceCount = Math.min(2, Math.max(1, Math.ceil(ua.criterios.length / Math.max(1, Math.ceil(horasSdA / estrategia.duracionBase)))));
+    const ceVinculado: string[] = [];
+    if (ua.criterios.length > 0) {
+      for (let k = 0; k < ceCount; k++) {
+        ceVinculado.push(ua.criterios[criterioIdx % ua.criterios.length]);
+        criterioIdx++;
       }
     }
 
-    const duracion = i === numSdA - 1 ? duracionBase + duracionResto : duracionBase;
-    const bloom = ua.bloomLevel;
+    // 2e. Calculate duration
+    let tiempo = Math.min(estrategia.duracionBase, cfg.duracionMaxSdA);
+    const horasRestantes = horasSdA - horasAcumuladas;
 
-    // Generate title
-    const titulo = fase === 'Inicio'
-      ? `Introducción y contextualización`
-      : fase === 'Cierre'
-        ? `Síntesis y evaluación formativa`
-        : criteriosAsignados.length > 0
-          ? `${criteriosAsignados[0].descripcion.substring(0, 60)}${criteriosAsignados[0].descripcion.length > 60 ? '...' : ''}`
-          : `Actividad de desarrollo ${i}`;
+    // Overflow control
+    if (horasAcumuladas + tiempo > horasSdA) {
+      tiempo = horasRestantes;
+    }
 
-    // Generate all text fields
-    const estrategia = generarEstrategia({
-      bloom,
-      contenido: contenidoTexto,
-      recursos: config.recursosDefault,
-      fase,
-    });
+    // If remaining time is too small, absorb into previous SdA
+    if (tiempo < cfg.duracionMinSdA && sdas.length > 0) {
+      sdas[sdas.length - 1].tiempo += tiempo;
+      break;
+    }
 
-    const desarrollo = generarDesarrollo({
-      bloom,
-      contenido: contenidoTexto,
-      duracionHoras: duracion,
-      fase,
-    });
+    // 2f. Instantiate SdA from template
+    const cePrincipal = ceVinculado.length > 0 ? ceVinculado.join(', ') : 'las competencias de la unidad';
 
-    const objetivo = generarObjetivoSdA(
-      criteriosAsignados.map(c => c.descripcion),
-      bloom
-    );
-
-    sdas.push({
-      id: i + 1,
+    const sda: SituacionAprendizaje = {
+      id: `sda-${(ua.uaNumero || 1)}-${i + 1}`,
       numero: i + 1,
       fase,
-      titulo,
-      objetivo,
-      estrategia,
-      desarrollo,
-      medios: [...config.mediosDefault],
-      espacios: config.espacioDefault,
-      duracionHoras: duracion,
-      ceAsociados: criteriosAsignados.map(c => c.id),
-    });
+      nombre: fillTemplate(
+        estrategia.nombresActividad[i % estrategia.nombresActividad.length],
+        contenido, cePrincipal
+      ),
+      objetivo: fillTemplate(estrategia.plantillaObjetivo, contenido, cePrincipal),
+      ceVinculado,
+      metodologia: fillTemplate(estrategia.plantillaMetodologia, contenido, cePrincipal),
+      desarrollo: fillTemplate(estrategia.plantillaDesarrollo, contenido, cePrincipal),
+      recursos: estrategia.recursosSugeridos.join('; '),
+      tiempo,
+    };
+
+    sdas.push(sda);
+    horasAcumuladas += tiempo;
+    i++;
+
+    // Safety: prevent infinite loops
+    if (i > 50) break;
   }
 
   return sdas;
 }
 
+// ============================================
+// HELPERS
+// ============================================
+
 /**
- * Valida la cobertura de criterios de evaluación en las SdAs generadas.
- * Devuelve los IDs de criterios no cubiertos.
+ * Determine phase based on accumulated hours position.
  */
-export function validarCoberturaCriterios(
-  sdas: SdA[],
-  criteriosTotales: Criterio[]
-): string[] {
-  const cubiertos = new Set(sdas.flatMap(s => s.ceAsociados));
-  return criteriosTotales
-    .filter(ce => !cubiertos.has(ce.id))
-    .map(ce => ce.id);
+function determinarFase(
+  horasAcumuladas: number,
+  horasTotales: number,
+  index: number
+): Fase {
+  if (index === 0) return 'Inicio';
+
+  const porcentajeAvance = horasAcumuladas / horasTotales;
+
+  // Last ~15% of hours -> Cierre (but only trigger once, near the end)
+  if (porcentajeAvance >= 0.85) return 'Cierre';
+
+  return 'Desarrollo';
 }
 
 /**
- * Calcula estadísticas de una lista de SdAs.
+ * Select strategy deterministically (circular within Bloom+phase).
  */
-export function estadisticasSdAs(sdas: SdA[]): {
+function seleccionarEstrategia(
+  bloom: BloomLevel,
+  fase: Fase,
+  counters: Record<string, number>
+): EstrategiaMetodologica {
+  const candidates = getStrategiesForBloomAndPhase(bloom, fase);
+
+  if (candidates.length === 0) {
+    // Fallback: any strategy for this Bloom level
+    const fallback = BLOOM_TO_STRATEGIES[bloom] || BLOOM_TO_STRATEGIES[3];
+    const key = `fallback-${bloom}`;
+    counters[key] = (counters[key] || 0);
+    const idx = counters[key] % fallback.length;
+    counters[key]++;
+    return fallback[idx];
+  }
+
+  const key = `${bloom}-${fase}`;
+  counters[key] = (counters[key] || 0);
+  const idx = counters[key] % candidates.length;
+  counters[key]++;
+  return candidates[idx];
+}
+
+/**
+ * Replace {contenido} and {ce_principal} placeholders in template text.
+ */
+function fillTemplate(
+  template: string,
+  contenido: string,
+  cePrincipal: string
+): string {
+  return template
+    .replace(/\{contenido\}/g, contenido)
+    .replace(/\{ce_principal\}/g, cePrincipal);
+}
+
+// ============================================
+// VALIDATION & STATS
+// ============================================
+
+/**
+ * Validate CE coverage across generated SdAs.
+ * Returns uncovered CE codes.
+ */
+export function validarCoberturaCE(
+  sdas: SituacionAprendizaje[],
+  criteriosTotales: string[]
+): string[] {
+  const cubiertos = new Set(sdas.flatMap(s => s.ceVinculado));
+  return criteriosTotales.filter(ce => !cubiertos.has(ce));
+}
+
+/**
+ * Statistics for a set of SdAs.
+ */
+export function estadisticasSdAs(sdas: SituacionAprendizaje[]): {
   totalSdAs: number;
   totalHoras: number;
   horasInicio: number;
@@ -193,18 +258,11 @@ export function estadisticasSdAs(sdas: SdA[]): {
   horasCierre: number;
   criteriosCubiertos: number;
 } {
-  const totalHoras = sdas.reduce((acc, s) => acc + s.duracionHoras, 0);
-  const horasInicio = sdas.filter(s => s.fase === 'Inicio').reduce((acc, s) => acc + s.duracionHoras, 0);
-  const horasDesarrollo = sdas.filter(s => s.fase === 'Desarrollo').reduce((acc, s) => acc + s.duracionHoras, 0);
-  const horasCierre = sdas.filter(s => s.fase === 'Cierre').reduce((acc, s) => acc + s.duracionHoras, 0);
-  const criteriosCubiertos = new Set(sdas.flatMap(s => s.ceAsociados)).size;
+  const totalHoras = sdas.reduce((acc, s) => acc + s.tiempo, 0);
+  const horasInicio = sdas.filter(s => s.fase === 'Inicio').reduce((acc, s) => acc + s.tiempo, 0);
+  const horasDesarrollo = sdas.filter(s => s.fase === 'Desarrollo').reduce((acc, s) => acc + s.tiempo, 0);
+  const horasCierre = sdas.filter(s => s.fase === 'Cierre').reduce((acc, s) => acc + s.tiempo, 0);
+  const criteriosCubiertos = new Set(sdas.flatMap(s => s.ceVinculado)).size;
 
-  return {
-    totalSdAs: sdas.length,
-    totalHoras,
-    horasInicio,
-    horasDesarrollo,
-    horasCierre,
-    criteriosCubiertos,
-  };
+  return { totalSdAs: sdas.length, totalHoras, horasInicio, horasDesarrollo, horasCierre, criteriosCubiertos };
 }

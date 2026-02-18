@@ -5,10 +5,8 @@ import {
   BLOOM_LABELS,
   METODO_POR_BLOOM,
 } from './engine/distributionEngine';
-import {
-  asignarCapacidadesAUA,
-  generarSdAParaUA,
-} from './engine/curriculumEngine';
+import { generarSdAsParaUA } from './engine/sdaEngine';
+import type { SituacionAprendizaje } from './types/sda';
 import {
   calcularModulosCascada,
   calcularMetricas,
@@ -25,7 +23,7 @@ import { CatalogBrowser } from './components/CatalogBrowser';
 import { NotionPlanning } from './components/NotionPlanning';
 import { NotionConfigBar } from './components/NotionConfigBar';
 import type { FichaSEPE } from './engine/sepeParser';
-import type { Capacidad, Certificado } from './types';
+import type { Certificado } from './types';
 
 // ============================================
 // DEMO DATA — HOTR0208 Operaciones Básicas de Cocina
@@ -180,19 +178,24 @@ export function App() {
     ) : null,
   [currentMod, activeCert.nivel]);
 
-  const capPorUA = useMemo(() =>
-    currentMod && distribucion
-      ? asignarCapacidadesAUA(currentMod.capacidades, distribucion.uas.length)
-      : [],
-  [currentMod, distribucion]);
-
+  // Generate SdAs using the v1.2 advanced engine (works with or without BOE data)
   const sdas = useMemo(() =>
     distribucion
-      ? distribucion.uas.map((ua, i) =>
-          generarSdAParaUA(ua, capPorUA[i] || [], [])
+      ? distribucion.uas.map((ua) =>
+          generarSdAsParaUA({
+            horasTotales: ua.horasTotales,
+            bloom: Math.min(5, ua.bloomLevel) as 1 | 2 | 3 | 4 | 5,
+            contenidos: currentMod
+              ? [currentMod.titulo || 'los contenidos del modulo']
+              : ['los contenidos del modulo'],
+            criterios: currentMod
+              ? currentMod.capacidades.flatMap(c => c.criterios.map(ce => ce.id))
+              : [],
+            uaNumero: ua.numero,
+          })
         )
       : [],
-  [distribucion, capPorUA]);
+  [distribucion, currentMod]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -323,17 +326,13 @@ export function App() {
               </div>
             </div>
 
-            {/* No capacidades warning for uploaded fichas */}
+            {/* Info: ficha sin capacidades BOE */}
             {dataSource === 'uploaded' && currentMod && currentMod.capacidades.length === 0 && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                <h3 className="text-sm font-semibold text-amber-800">⚠️ Ficha sin capacidades ni criterios</h3>
-                <p className="text-xs text-amber-700 mt-1">
-                  La ficha SEPE solo contiene la estructura de módulos/horas. Para ver la distribución pedagógica completa
-                  (UAs, SdAs, criterios), necesitas cargar el Anexo del Real Decreto (BOE) que contiene las capacidades
-                  y criterios de evaluación.
-                </p>
-                <p className="text-xs text-amber-600 mt-2">
-                  La distribución de horas y UAs por Bloom sí funciona — solo faltan las capacidades/criterios vinculados.
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <h3 className="text-sm font-semibold text-blue-800">Generando SdAs desde plantillas metodologicas</h3>
+                <p className="text-xs text-blue-700 mt-1">
+                  Las SdAs se generan con textos pedagogicos basados en el nivel Bloom y las horas del modulo.
+                  Para vincular criterios de evaluacion (CE) especificos, carga el Anexo del Real Decreto (BOE).
                 </p>
               </div>
             )}
@@ -371,14 +370,10 @@ export function App() {
                           <span>Método:</span>
                           <span className="font-medium">{METODO_POR_BLOOM[ua.bloomLevel]}</span>
                         </div>
-                        {capPorUA[i] && capPorUA[i].length > 0 && (
+                        {sdas[i] && sdas[i].length > 0 && (
                           <div className="pt-1 border-t border-slate-100 mt-2">
-                            <span className="text-slate-500">Capacidades: </span>
-                            {capPorUA[i].map(c => (
-                              <span key={c.id} className="inline-flex items-center px-1.5 py-0.5 rounded bg-green-50 text-green-700 text-xs font-medium mr-1">
-                                {c.id}
-                              </span>
-                            ))}
+                            <span className="text-slate-500">SdAs generadas: </span>
+                            <span className="font-medium text-green-700">{sdas[i].length}</span>
                           </div>
                         )}
                       </div>
@@ -388,7 +383,7 @@ export function App() {
               </div>
             )}
 
-            {/* SdAs por UA */}
+            {/* SdAs por UA — Generador Avanzado v1.2 */}
             {distribucion && sdas.length > 0 && sdas.some(s => s && s.length > 0) && distribucion.uas.map((ua, i) => (
               <div key={i} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-200 bg-slate-50">
@@ -401,30 +396,58 @@ export function App() {
                 </div>
                 <div className="divide-y divide-slate-100">
                   {(sdas[i] || []).map((sda, j) => (
-                    <div key={j} className="px-6 py-3">
-                      <div className="flex items-center gap-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                    <div key={j} className="px-6 py-4 space-y-3">
+                      {/* Header: fase + nombre + tiempo */}
+                      <div className="flex items-start gap-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 ${
                           sda.fase === 'Inicio' ? 'bg-emerald-100 text-emerald-700' :
                           sda.fase === 'Cierre' ? 'bg-red-100 text-red-700' :
                           'bg-blue-100 text-blue-700'
                         }`}>{sda.fase}</span>
-                        <span className="text-sm font-medium text-slate-900">SdA {sda.numero}</span>
-                        <span className="text-xs text-slate-500">{sda.duracionHoras}h · {sda.metodo} · {sda.agrupacion}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold text-slate-900">{sda.nombre}</div>
+                          <div className="text-xs text-slate-500 mt-0.5">{sda.tiempo}h</div>
+                        </div>
                       </div>
-                      {sda.criterios.length > 0 && (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {sda.criterios.map(c => (
-                            <span key={c.id} className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-xs">
-                              {c.id}
+
+                      {/* CE vinculados */}
+                      {sda.ceVinculado.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {sda.ceVinculado.map((ce, k) => (
+                            <span key={k} className="inline-flex items-center px-1.5 py-0.5 rounded bg-green-50 text-green-700 text-xs font-medium">
+                              {ce}
                             </span>
                           ))}
                         </div>
                       )}
+
+                      {/* Objetivo */}
+                      <div>
+                        <div className="text-xs font-semibold text-slate-700 mb-1">Objetivo</div>
+                        <p className="text-xs text-slate-600 leading-relaxed">{sda.objetivo}</p>
+                      </div>
+
+                      {/* Metodologia */}
+                      <div>
+                        <div className="text-xs font-semibold text-slate-700 mb-1">Metodologia</div>
+                        <p className="text-xs text-slate-600 leading-relaxed">{sda.metodologia}</p>
+                      </div>
+
+                      {/* Desarrollo */}
+                      <details className="group">
+                        <summary className="text-xs font-semibold text-slate-700 cursor-pointer hover:text-green-700">
+                          Desarrollo de la actividad ▸
+                        </summary>
+                        <p className="text-xs text-slate-600 leading-relaxed mt-1 whitespace-pre-line">{sda.desarrollo}</p>
+                      </details>
+
+                      {/* Recursos */}
+                      <div className="text-xs text-slate-500">
+                        <span className="font-medium text-slate-600">Recursos: </span>{sda.recursos}
+                      </div>
                     </div>
                   ))}
                 </div>
-              </div>
-            ))}
 
             {/* Methodology Text Preview */}
             {distribucion && (
