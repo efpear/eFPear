@@ -7,7 +7,7 @@
  * Uses pdfjs-dist (browser-side, GDPR compliant — zero server calls).
  */
 
-import * as pdfjsLib from 'pdfjs-dist';
+import { pdfjsLib } from './pdfSetup';
 import { parseFichaTexto } from './sepeParser';
 import type { FichaSEPE } from './sepeParser';
 

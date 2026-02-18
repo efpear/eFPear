@@ -413,13 +413,7 @@ export function fichaACertificado(ficha: FichaSEPE): Certificado {
  * Call this from the UI component after user selects a file.
  */
 export async function extractTextFromPDF(file: File): Promise<string> {
-  const pdfjsLib = await import('pdfjs-dist');
-
-  // Set worker source — Vite handles this
-  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.min.mjs',
-    import.meta.url,
-  ).toString();
+  const { pdfjsLib } = await import('./pdfSetup');
 
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
