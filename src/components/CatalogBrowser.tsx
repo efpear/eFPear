@@ -84,12 +84,12 @@ export function CatalogBrowser({ onCertificadoSelected, currentCodigo }: Catalog
       >
         <input ref={fileRef} type="file" accept=".pdf" className="hidden"
           onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
-        <div className="text-3xl mb-3">{'\uD83D\uDCDA'}</div>
+        <div className="text-3xl mb-3">📚</div>
         <div className="text-sm font-semibold text-slate-700">
           Cargar repertorio de certificados
         </div>
         <div className="text-xs text-slate-500 mt-1">
-          PDF con m{'\u00FA'}ltiples fichas SEPE {'\u00B7'} arrastra o haz clic
+          PDF con múltiples fichas SEPE · arrastra o haz clic
         </div>
         {error && <div className="text-xs text-red-600 mt-3">{error}</div>}
       </div>
@@ -124,17 +124,17 @@ export function CatalogBrowser({ onCertificadoSelected, currentCodigo }: Catalog
       {/* Stats bar */}
       {result && (
         <div className="flex items-center gap-3 text-xs text-slate-500">
-          <span className="font-semibold text-green-700">{'\u2714'} {fichas.length} certificados</span>
+          <span className="font-semibold text-green-700">✔ {fichas.length} certificados</span>
           <span className="text-slate-300">|</span>
           <span>{familias.length} familias</span>
           <span className="text-slate-300">|</span>
-          <span>{result.totalPages} p{'\u00E1'}ginas</span>
+          <span>{result.totalPages} páginas</span>
           <span className="text-slate-300">|</span>
           <span>{(result.duration / 1000).toFixed(1)}s</span>
           {result.parseErrors.length > 0 && (
             <>
               <span className="text-slate-300">|</span>
-              <span className="text-amber-600">{'\u26A0'} {result.parseErrors.length} errores</span>
+              <span className="text-amber-600">⚠ {result.parseErrors.length} errores</span>
             </>
           )}
           <button onClick={() => { setFichas([]); setResult(null); setProgress(null); }}
@@ -150,10 +150,10 @@ export function CatalogBrowser({ onCertificadoSelected, currentCodigo }: Catalog
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Buscar por c{'\u00F3'}digo, t{'\u00ED'}tulo o familia..."
+          placeholder="Buscar por código, título o familia..."
           className="w-full rounded-lg border border-slate-200 pl-9 pr-4 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
         />
-        <span className="absolute left-3 top-2.5 text-slate-400 text-sm">{'\uD83D\uDD0D'}</span>
+        <span className="absolute left-3 top-2.5 text-slate-400 text-sm">🔍</span>
         {search && (
           <span className="absolute right-3 top-2 text-xs text-slate-400">
             {filtered.length} resultado{filtered.length !== 1 ? 's' : ''}
@@ -178,7 +178,7 @@ export function CatalogBrowser({ onCertificadoSelected, currentCodigo }: Catalog
                   <span className="text-xs text-slate-400 transition-transform" style={{
                     display: 'inline-block',
                     transform: isOpen ? 'rotate(90deg)' : 'none'
-                  }}>{'\u25B6'}</span>
+                  }}>▶</span>
                   <span className="text-sm font-medium text-slate-800">{fam}</span>
                 </div>
                 <span className="text-xs text-slate-400 bg-slate-100 rounded-full px-2 py-0.5">
@@ -209,7 +209,7 @@ export function CatalogBrowser({ onCertificadoSelected, currentCodigo }: Catalog
 
                         {/* Title */}
                         <span className="text-sm text-slate-700 truncate flex-1">
-                          {ficha.titulo || 'Sin t\u00EDtulo'}
+                          {ficha.titulo || 'Sin título'}
                         </span>
 
                         {/* Properties */}

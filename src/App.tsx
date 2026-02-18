@@ -204,7 +204,7 @@ export function App() {
               <img src="/logo-icon-color.png" alt="eFPear" className="h-10 w-10" />
               <div>
                 <h1 className="text-lg font-bold text-slate-900">eFPear <span className="text-green-700">CertiCalc</span></h1>
-                <p className="text-xs text-slate-500">Planificaci{'\u00F3'}n formativa FP</p>
+                <p className="text-xs text-slate-500">Planificación formativa FP</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -231,8 +231,8 @@ export function App() {
       <nav className="bg-white border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-6">
           {[
-            { id: 'calendario' as Tab, icon: '\uD83D\uDCC5', label: 'Planificaci\u00F3n temporal' },
-            { id: 'pedagogica' as Tab, icon: '\uD83D\uDCDA', label: 'Programaci\u00F3n did\u00E1ctica' },
+            { id: 'calendario' as Tab, icon: '📅', label: 'Planificación temporal' },
+            { id: 'pedagogica' as Tab, icon: '📚', label: 'Programación didáctica' },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               className={`py-3 text-sm font-medium border-b-2 transition-colors ${
@@ -251,7 +251,7 @@ export function App() {
             {/* Catalog Browser OR single ficha upload */}
             <details className="group" open={dataSource !== 'uploaded'}>
               <summary className="flex items-center gap-2 cursor-pointer text-sm text-slate-500 hover:text-slate-700 py-2">
-                <span className="transition-transform group-open:rotate-90">{'\u25B6'}</span>
+                <span className="transition-transform group-open:rotate-90">▶</span>
                 {dataSource === 'uploaded' ? `${fichaInfo?.codigo || 'Certificado'} cargado — cambiar` : 'Cargar certificado(s)'}
               </summary>
               <div className="mt-2 space-y-3">
@@ -263,7 +263,7 @@ export function App() {
                 {/* Single ficha fallback */}
                 <details className="group/single">
                   <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-600">
-                    {'\u2192'} O cargar ficha individual
+                    → O cargar ficha individual
                   </summary>
                   <div className="mt-2 bg-white rounded-xl border border-slate-200 shadow-sm p-4">
                     <PDFUpload onCertificadoLoaded={handleCertificadoLoaded} />
@@ -291,7 +291,7 @@ export function App() {
             {coherencia.alertas.length > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50/50 px-4 py-3">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-amber-500">{'\u26A0'}</span>
+                  <span className="text-amber-500">⚠</span>
                   <span className="text-xs font-semibold text-amber-800">Alertas de coherencia</span>
                 </div>
                 {coherencia.alertas.map((a, i) => (
@@ -306,7 +306,7 @@ export function App() {
           <div className="space-y-6">
             {/* Module Selector */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-              <h2 className="text-base font-semibold text-slate-900 mb-4">Seleccionar m{'\u00F3'}dulo formativo</h2>
+              <h2 className="text-base font-semibold text-slate-900 mb-4">Seleccionar módulo formativo</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {activeCert.modulos.map((m, i) => (
                   <button key={m.codigo} onClick={() => setSelectedMod(i)}
@@ -317,7 +317,7 @@ export function App() {
                     }`}>
                     <div className="text-sm font-semibold text-slate-900">{m.codigo}</div>
                     <div className="text-xs text-slate-500 mt-1 line-clamp-2">{m.titulo}</div>
-                    <div className="text-xs font-medium text-green-700 mt-2">{m.horas}h {'\u00B7'} {m.capacidades.length} capacidades</div>
+                    <div className="text-xs font-medium text-green-700 mt-2">{m.horas}h · {m.capacidades.length} capacidades</div>
                   </button>
                 ))}
               </div>
@@ -326,7 +326,7 @@ export function App() {
             {/* No capacidades warning for uploaded fichas */}
             {dataSource === 'uploaded' && currentMod && currentMod.capacidades.length === 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                <h3 className="text-sm font-semibold text-amber-800">{'\u26A0\uFE0F'} Ficha sin capacidades ni criterios</h3>
+                <h3 className="text-sm font-semibold text-amber-800">⚠️ Ficha sin capacidades ni criterios</h3>
                 <p className="text-xs text-amber-700 mt-1">
                   La ficha SEPE solo contiene la estructura de módulos/horas. Para ver la distribución pedagógica completa
                   (UAs, SdAs, criterios), necesitas cargar el Anexo del Real Decreto (BOE) que contiene las capacidades
@@ -343,7 +343,7 @@ export function App() {
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
                 <h2 className="text-base font-semibold text-slate-900 mb-1">Distribución pedagógica</h2>
                 <p className="text-xs text-slate-500 mb-4">
-                  {currentMod?.codigo} {'\u00B7'} {distribucion.horasTotalesMF}h {'\u2192'} {distribucion.uas.length} UAs
+                  {currentMod?.codigo} · {distribucion.horasTotalesMF}h → {distribucion.uas.length} UAs
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {distribucion.uas.map((ua, i) => (
@@ -355,7 +355,7 @@ export function App() {
                           ua.bloomLevel >= 3 ? 'bg-blue-100 text-blue-700' :
                           'bg-slate-100 text-slate-700'
                         }`}>
-                          Bloom {ua.bloomLevel} {'\u00B7'} {BLOOM_LABELS[ua.bloomLevel]}
+                          Bloom {ua.bloomLevel} · {BLOOM_LABELS[ua.bloomLevel]}
                         </span>
                       </div>
                       <div className="space-y-1 text-xs text-slate-600">
@@ -368,7 +368,7 @@ export function App() {
                           <span className="font-medium">{ua.sdasAjustadas}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span>M{'\u00E9'}todo:</span>
+                          <span>Método:</span>
                           <span className="font-medium">{METODO_POR_BLOOM[ua.bloomLevel]}</span>
                         </div>
                         {capPorUA[i] && capPorUA[i].length > 0 && (
@@ -393,10 +393,10 @@ export function App() {
               <div key={i} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-200 bg-slate-50">
                   <h3 className="text-sm font-semibold text-slate-900">
-                    UA {ua.numero} {'\u2014'} Situaciones de Aprendizaje
+                    UA {ua.numero} — Situaciones de Aprendizaje
                   </h3>
                   <p className="text-xs text-slate-500 mt-1">
-                    {sdas[i]?.length || 0} SdAs {'\u00B7'} {ua.horasTotales}h {'\u00B7'} Bloom {ua.bloomLevel} ({BLOOM_LABELS[ua.bloomLevel]})
+                    {sdas[i]?.length || 0} SdAs · {ua.horasTotales}h · Bloom {ua.bloomLevel} ({BLOOM_LABELS[ua.bloomLevel]})
                   </p>
                 </div>
                 <div className="divide-y divide-slate-100">
@@ -409,7 +409,7 @@ export function App() {
                           'bg-blue-100 text-blue-700'
                         }`}>{sda.fase}</span>
                         <span className="text-sm font-medium text-slate-900">SdA {sda.numero}</span>
-                        <span className="text-xs text-slate-500">{sda.duracionHoras}h {'\u00B7'} {sda.metodo} {'\u00B7'} {sda.agrupacion}</span>
+                        <span className="text-xs text-slate-500">{sda.duracionHoras}h · {sda.metodo} · {sda.agrupacion}</span>
                       </div>
                       {sda.criterios.length > 0 && (
                         <div className="mt-1 flex flex-wrap gap-1">
@@ -429,12 +429,12 @@ export function App() {
             {/* Methodology Text Preview */}
             {distribucion && (
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                <h2 className="text-base font-semibold text-slate-900 mb-4">Vista previa: Metodolog{'\u00ED'}a (Anexo IV)</h2>
+                <h2 className="text-base font-semibold text-slate-900 mb-4">Vista previa: Metodología (Anexo IV)</h2>
                 <div className="space-y-4">
                   {distribucion.uas.map((ua, i) => {
                     const m = ua.metodoPrincipal;
                     const bloom = `Bloom ${ua.bloomLevel} (${ua.bloomLabel})`;
-                    const texto = `La metodolog\u00EDa de la UA ${ua.numero} se basa en un enfoque ${m.toLowerCase()}, aplicando t\u00E9cnica ${ua.tecnicaBase} con agrupaci\u00F3n ${ua.agrupacionSugerida}. Nivel ${bloom}. Duraci\u00F3n: ${ua.horasTotales}h en ${ua.sdasAjustadas} situaciones de aprendizaje.`;
+                    const texto = `La metodología de la UA ${ua.numero} se basa en un enfoque ${m.toLowerCase()}, aplicando técnica ${ua.tecnicaBase} con agrupación ${ua.agrupacionSugerida}. Nivel ${bloom}. Duración: ${ua.horasTotales}h en ${ua.sdasAjustadas} situaciones de aprendizaje.`;
                     return (
                       <div key={i} className="border-l-4 border-green-500 pl-4">
                         <h4 className="text-sm font-semibold text-slate-900 mb-1">UA {i + 1}</h4>
@@ -453,8 +453,8 @@ export function App() {
       <footer className="fixed bottom-0 w-full bg-white border-t border-slate-200 py-2 z-10">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p className="text-xs text-slate-400">
-            eFPear CertiCalc v2.2 {'\u00B7'} {dataSource === 'uploaded' ? activeCert.codigo : `Demo: ${activeCert.codigo}`}
-            {' '}{activeCert.nombre} {'\u00B7'} GDPR by design {'\u00B7'} 100% local
+            eFPear CertiCalc v2.2 · {dataSource === 'uploaded' ? activeCert.codigo : `Demo: ${activeCert.codigo}`}
+            {' '}{activeCert.nombre} · GDPR by design · 100% local
           </p>
         </div>
       </footer>
