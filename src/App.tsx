@@ -448,6 +448,8 @@ export function App() {
                     </div>
                   ))}
                 </div>
+              </div>
+            ))}
 
             {/* Methodology Text Preview */}
             {distribucion && (
