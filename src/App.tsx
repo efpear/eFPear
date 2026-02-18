@@ -131,7 +131,7 @@ type DataSource = 'demo' | 'uploaded';
 // APP
 // ============================================
 export function App() {
-  const [tab, setTab] = useState<Tab>('calendario');
+  const [tab, setTab] = useState<Tab>('elegibilidad');
   const [ccaa, setCcaa] = useState<CCAA>('canarias');
   const [isla, setIsla] = useState<IslaCanaria>('tenerife');
   const [turno, setTurno] = useState<'manana' | 'tarde' | 'completo'>('manana');
@@ -251,7 +251,15 @@ export function App() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20">
         {tab === 'elegibilidad' ? (
-          <EligibilityCheck />
+          <EligibilityCheck
+              onPlanificar={(codigoMF, nombreMF) => {
+                // Slice 2: Eligibility -> Calendar bridge
+                // Switch to calendar tab
+                setTab('calendario');
+                // Scroll to top for UX
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            />
         ) : tab === 'calendario' ? (
           <div className="space-y-4">
             {/* PDF Upload — collapsible */}

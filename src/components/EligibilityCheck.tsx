@@ -42,7 +42,12 @@ const PRESETS: { label: string; value: BoeRequirements }[] = [
 // ============================================
 // COMPONENT
 // ============================================
-export function EligibilityCheck() {
+interface EligibilityCheckProps {
+  /** Called when user clicks 'Planificar Fechas' after ELIGIBLE/CONDICIONAL result */
+  onPlanificar?: (codigoMF: string, nombreMF: string) => void;
+}
+
+export function EligibilityCheck({ onPlanificar }: EligibilityCheckProps) {
   const [titulacionInput, setTitulacionInput] = useState('');
   const [nivelMaximo, setNivelMaximo] = useState<1 | 2 | 3 | 4 | 5>(2);
   const [experiencia, setExperiencia] = useState(0);
@@ -303,6 +308,29 @@ export function EligibilityCheck() {
               </div>
             ))}
           </div>
+
+          {/* Slice 2: Planificar Fechas CTA */}
+          {(result.status === 'ELIGIBLE' || result.status === 'CONDICIONAL') && onPlanificar && (
+            <div className="px-6 pb-6">
+              <button
+                onClick={() => onPlanificar(PRESETS[selectedPreset].value.codigoMF, PRESETS[selectedPreset].value.nombreMF)}
+                className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+                  result.status === 'ELIGIBLE'
+                    ? 'bg-green-600 hover:bg-green-700 text-white shadow-md shadow-green-200'
+                    : 'bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-200'
+                }`}
+              >
+                <span>{"\uD83D\uDCC5"}</span>
+                <span>Planificar Fechas</span>
+                <span className="text-xs opacity-75">{"\u2192"} Calendario</span>
+              </button>
+              {result.status === 'CONDICIONAL' && (
+                <p className="text-xs text-amber-600 text-center mt-2">
+                  Puedes planificar con resultado condicional. Resuelve los requisitos pendientes antes de impartir.
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
