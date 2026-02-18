@@ -19,9 +19,8 @@
  * @module anexoTemplates
  */
 
-import type { SdA, BloomLevel } from '../types';
+import type { SdA } from '../types';
 import type { UACompleta, CurriculumResult } from './curriculumEngine';
-import { BLOOM_LABELS } from './distributionEngine';
 
 // ============================================
 // DATA TYPES
@@ -103,7 +102,7 @@ export function renderObjetivoGeneral(objetivo?: string): string {
  * Renderiza la tabla de SdAs para una UA.
  */
 export function renderTablaSdA(ua: UACompleta): string {
-  const rows = ua.sdas.map((sda, i) => {
+  const rows = ua.sdas.map((sda) => {
     // Use SdA fields from the full type
     const ceText = 'ceAsociados' in sda
       ? (sda as any).ceAsociados?.join(', ') || ''
@@ -297,7 +296,7 @@ export function renderAnexoIVPreview(
   result: CurriculumResult,
   options: Omit<AnexoIVOptions, 'includeStyles'>
 ): string {
-  const { centro, certificado, modulo, espacios = [] } = options;
+  const { centro, certificado, modulo } = options;
 
   const cabecera = renderCabeceraAnexo(centro, certificado, modulo);
   const objetivo = renderObjetivoGeneral(modulo.objetivoGeneral);
