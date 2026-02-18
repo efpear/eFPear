@@ -21,6 +21,7 @@ import type {
 } from './engine/calendarEngine';
 import { DEFAULT_TURNOS } from './engine/calendarEngine';
 import { PDFUpload } from './components/PDFUpload';
+import { CatalogBrowser } from './components/CatalogBrowser';
 import { NotionPlanning } from './components/NotionPlanning';
 import { NotionConfigBar } from './components/NotionConfigBar';
 import type { FichaSEPE } from './engine/sepeParser';
@@ -247,41 +248,29 @@ export function App() {
         {tab === 'calendario' ? (
           <div className="space-y-4">
             {/* PDF Upload — collapsible */}
-            <details className="group">
+            {/* Catalog Browser OR single ficha upload */}
+            <details className="group" open={dataSource !== 'uploaded'}>
               <summary className="flex items-center gap-2 cursor-pointer text-sm text-slate-500 hover:text-slate-700 py-2">
                 <span className="transition-transform group-open:rotate-90">{'\u25B6'}</span>
-                Cargar ficha SEPE
+                {dataSource === 'uploaded' ? `${fichaInfo?.codigo || 'Certificado'} cargado — cambiar` : 'Cargar certificado(s)'}
               </summary>
-              <div className="mt-2 bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                <PDFUpload onCertificadoLoaded={handleCertificadoLoaded} />
+              <div className="mt-2 space-y-3">
+                {/* Bulk catalog (multi-ficha PDF) */}
+                <CatalogBrowser
+                  onCertificadoSelected={(cert, ficha) => handleCertificadoLoaded(cert, ficha)}
+                  currentCodigo={fichaInfo?.codigo}
+                />
+                {/* Single ficha fallback */}
+                <details className="group/single">
+                  <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-600">
+                    {'\u2192'} O cargar ficha individual
+                  </summary>
+                  <div className="mt-2 bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                    <PDFUpload onCertificadoLoaded={handleCertificadoLoaded} />
+                  </div>
+                </details>
               </div>
             </details>
-
-            {/* Ficha Info (when uploaded) */}
-            {fichaInfo && (
-              <div className="rounded-lg border border-green-200 bg-green-50/50 px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <span className="w-2.5 h-2.5 rounded-full bg-green-500" />
-                  <span className="text-sm font-semibold text-green-800">{fichaInfo.codigo}</span>
-                  <span className="text-sm text-green-700">{fichaInfo.titulo || 'Certificado cargado'}</span>
-                  <span className="text-xs text-green-600 ml-auto">Nivel {fichaInfo.nivel} {'\u00B7'} {fichaInfo.horasTotales}h {'\u00B7'} {fichaInfo.modulos.length} m\u00F3dulos</span>
-                </div>
-                {fichaInfo.unidadesCompetencia.length > 0 && (
-                  <details className="mt-2">
-                    <summary className="text-xs text-green-600 cursor-pointer hover:text-green-700">
-                      Ver unidades de competencia ({fichaInfo.unidadesCompetencia.length})
-                    </summary>
-                    <div className="mt-1 space-y-0.5 pl-5">
-                      {fichaInfo.unidadesCompetencia.map(uc => (
-                        <div key={uc.codigo} className="text-xs text-green-700">
-                          <span className="font-medium">{uc.codigo}</span> — {uc.descripcion}
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                )}
-              </div>
-            )}
 
             {/* Notion-style config pills */}
             <NotionConfigBar
