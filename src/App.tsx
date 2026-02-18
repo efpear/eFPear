@@ -21,6 +21,8 @@ import type {
 } from './engine/calendarEngine';
 import { DEFAULT_TURNOS } from './engine/calendarEngine';
 import { PDFUpload } from './components/PDFUpload';
+import { NotionPlanning } from './components/NotionPlanning';
+import { NotionConfigBar } from './components/NotionConfigBar';
 import type { FichaSEPE } from './engine/sepeParser';
 import type { Capacidad, Certificado } from './types';
 
@@ -243,154 +245,68 @@ export function App() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20">
         {tab === 'calendario' ? (
-          <div className="space-y-6">
-            {/* PDF Upload */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-              <h2 className="text-base font-semibold text-slate-900 mb-4">Cargar ficha SEPE</h2>
-              <PDFUpload onCertificadoLoaded={handleCertificadoLoaded} />
-            </div>
-
-            {/* Config Panel */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-              <h2 className="text-base font-semibold text-slate-900 mb-4">Configuraci{'\u00F3'}n regional y turnos</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">CCAA</label>
-                  <select value={ccaa} onChange={e => setCcaa(e.target.value as CCAA)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                    {CCAA_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                </div>
-                {ccaa === 'canarias' && (
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Isla</label>
-                    <select value={isla} onChange={e => setIsla(e.target.value as IslaCanaria)}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                      {ISLA_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                    </select>
-                  </div>
-                )}
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Turno</label>
-                  <select value={turno} onChange={e => setTurno(e.target.value as any)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                    <option value="manana">Ma{'\u00F1'}ana (5h/d{'\u00ED'}a)</option>
-                    <option value="tarde">Tarde (5h/d{'\u00ED'}a)</option>
-                    <option value="completo">Completo (8h/d{'\u00ED'}a)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Fecha inicio</label>
-                  <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500" />
-                </div>
+          <div className="space-y-4">
+            {/* PDF Upload — collapsible */}
+            <details className="group">
+              <summary className="flex items-center gap-2 cursor-pointer text-sm text-slate-500 hover:text-slate-700 py-2">
+                <span className="transition-transform group-open:rotate-90">{'\u25B6'}</span>
+                Cargar ficha SEPE
+              </summary>
+              <div className="mt-2 bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                <PDFUpload onCertificadoLoaded={handleCertificadoLoaded} />
               </div>
-            </div>
+            </details>
 
             {/* Ficha Info (when uploaded) */}
             {fichaInfo && (
-              <div className="bg-white rounded-xl border border-green-200 shadow-sm p-6">
-                <h2 className="text-base font-semibold text-green-800 mb-3">
-                  {fichaInfo.codigo} — {fichaInfo.titulo || 'Certificado cargado'}
-                </h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                  <div><span className="text-slate-500">Nivel:</span> <span className="font-medium">{fichaInfo.nivel}</span></div>
-                  <div><span className="text-slate-500">Familia:</span> <span className="font-medium">{fichaInfo.familiaProfesional}</span></div>
-                  <div><span className="text-slate-500">Horas totales:</span> <span className="font-medium">{fichaInfo.horasTotales}h</span></div>
-                  <div><span className="text-slate-500">M{'\u00F3'}dulos:</span> <span className="font-medium">{fichaInfo.modulos.length}</span></div>
+              <div className="rounded-lg border border-green-200 bg-green-50/50 px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <span className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                  <span className="text-sm font-semibold text-green-800">{fichaInfo.codigo}</span>
+                  <span className="text-sm text-green-700">{fichaInfo.titulo || 'Certificado cargado'}</span>
+                  <span className="text-xs text-green-600 ml-auto">Nivel {fichaInfo.nivel} {'\u00B7'} {fichaInfo.horasTotales}h {'\u00B7'} {fichaInfo.modulos.length} m\u00F3dulos</span>
                 </div>
                 {fichaInfo.unidadesCompetencia.length > 0 && (
-                  <div className="mt-4 border-t border-slate-100 pt-3">
-                    <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Unidades de Competencia</h3>
-                    <div className="space-y-1">
+                  <details className="mt-2">
+                    <summary className="text-xs text-green-600 cursor-pointer hover:text-green-700">
+                      Ver unidades de competencia ({fichaInfo.unidadesCompetencia.length})
+                    </summary>
+                    <div className="mt-1 space-y-0.5 pl-5">
                       {fichaInfo.unidadesCompetencia.map(uc => (
-                        <div key={uc.codigo} className="text-xs text-slate-600">
-                          <span className="font-medium text-slate-900">{uc.codigo}</span> — {uc.descripcion}
+                        <div key={uc.codigo} className="text-xs text-green-700">
+                          <span className="font-medium">{uc.codigo}</span> — {uc.descripcion}
                         </div>
                       ))}
                     </div>
-                  </div>
+                  </details>
                 )}
               </div>
             )}
 
-            {/* Metrics Dashboard */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              {[
-                { label: 'M\u00F3dulos', value: metricas.totalModulos, icon: '\uD83D\uDCE6' },
-                { label: 'Horas totales', value: `${metricas.totalHoras}h`, icon: '\u23F1\uFE0F' },
-                { label: 'Sesiones', value: metricas.totalSesiones, icon: '\uD83D\uDCCB' },
-                { label: 'D\u00EDas lectivos', value: metricas.totalDiasLectivos, icon: '\uD83D\uDCC5' },
-                { label: 'Progreso', value: `${metricas.porcentajeCompletado}%`, icon: coherencia.coherente ? '\u2705' : '\u26A0\uFE0F' },
-              ].map(m => (
-                <div key={m.label} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 text-center">
-                  <div className="text-2xl mb-1">{m.icon}</div>
-                  <div className="text-xl font-bold text-slate-900">{m.value}</div>
-                  <div className="text-xs text-slate-500">{m.label}</div>
-                </div>
-              ))}
-            </div>
+            {/* Notion-style config pills */}
+            <NotionConfigBar
+              ccaa={ccaa} isla={isla} turno={turno} fechaInicio={fechaInicio}
+              onCcaaChange={setCcaa} onIslaChange={setIsla}
+              onTurnoChange={setTurno} onFechaChange={setFechaInicio}
+            />
 
-            {/* Module Sessions Table */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-200">
-                <h2 className="text-base font-semibold text-slate-900">Sesiones por m{'\u00F3'}dulo (cascada)</h2>
-                <p className="text-xs text-slate-500 mt-1">
-                  {metricas.fechaInicio} {'\u2192'} {metricas.fechaFin} {'\u00B7'} {ccaa === 'canarias' ? `Canarias / ${isla}` : ccaa}
-                </p>
-              </div>
-              <div className="divide-y divide-slate-100">
-                {modulosCascada.map((mod, i) => {
-                  const primeraSesion = mod.sesiones[0];
-                  const ultimaSesion = mod.sesiones[mod.sesiones.length - 1];
-                  const colors = ['bg-green-600', 'bg-blue-600', 'bg-amber-600', 'bg-purple-600', 'bg-rose-600', 'bg-cyan-600', 'bg-indigo-600'];
-                  const lightColors = ['bg-green-100 text-green-700', 'bg-blue-100 text-blue-700', 'bg-amber-100 text-amber-700', 'bg-purple-100 text-purple-700', 'bg-rose-100 text-rose-700', 'bg-cyan-100 text-cyan-700', 'bg-indigo-100 text-indigo-700'];
-                  return (
-                    <div key={mod.id} className="px-6 py-4 hover:bg-slate-50 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <span className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-sm font-bold text-white ${colors[i % colors.length]}`}>{i + 1}</span>
-                          <div>
-                            <div className="text-sm font-medium text-slate-900">{mod.codigo}</div>
-                            <div className="text-xs text-slate-500 max-w-md truncate">{activeCert.modulos[i]?.titulo || ''}</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-6 text-sm">
-                          <div className="text-right">
-                            <div className="font-medium text-slate-900">{mod.horasTotales}h</div>
-                            <div className="text-xs text-slate-500">{mod.sesiones.length} sesiones</div>
-                          </div>
-                          <div className="text-right text-xs text-slate-500">
-                            <div>{primeraSesion?.fecha || '\u2014'}</div>
-                            <div>{ultimaSesion?.fecha || '\u2014'}</div>
-                          </div>
-                        </div>
-                      </div>
-                      {/* Session mini-timeline */}
-                      <div className="mt-3 flex flex-wrap gap-1">
-                        {mod.sesiones.slice(0, 40).map((s, j) => (
-                          <div key={j} title={`${s.fecha} \u00B7 ${s.horas}h`}
-                            className={`w-5 h-5 rounded text-[10px] flex items-center justify-center font-medium ${lightColors[i % lightColors.length]}`}>
-                            {s.horas}
-                          </div>
-                        ))}
-                        {mod.sesiones.length > 40 && (
-                          <div className="w-5 h-5 rounded bg-slate-100 text-slate-500 text-[10px] flex items-center justify-center">+{mod.sesiones.length - 40}</div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            {/* Notion-style planning views */}
+            <NotionPlanning
+              modulosCascada={modulosCascada}
+              modulos={activeCert.modulos}
+              metricas={metricas}
+              coherencia={coherencia}
+            />
 
-            {/* Coherence Alerts */}
+            {/* Coherence alerts */}
             {coherencia.alertas.length > 0 && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                <h3 className="text-sm font-semibold text-amber-800 mb-2">Alertas de coherencia</h3>
+              <div className="rounded-lg border border-amber-200 bg-amber-50/50 px-4 py-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-amber-500">{'\u26A0'}</span>
+                  <span className="text-xs font-semibold text-amber-800">Alertas de coherencia</span>
+                </div>
                 {coherencia.alertas.map((a, i) => (
-                  <div key={i} className="text-xs text-amber-700 flex items-center gap-2 py-1">
-                    <span>{a.tipo === 'error' ? '\uD83D\uDD34' : a.tipo === 'warning' ? '\uD83D\uDFE1' : '\u2139\uFE0F'}</span>
+                  <div key={i} className="text-xs text-amber-700 py-0.5 pl-5">
                     {a.mensaje}
                   </div>
                 ))}
@@ -398,7 +314,6 @@ export function App() {
             )}
           </div>
         ) : (
-          /* PEDAGOGICA TAB */
           <div className="space-y-6">
             {/* Module Selector */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
