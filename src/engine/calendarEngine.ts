@@ -21,9 +21,7 @@ import type { FechaISO, ModuloConSesiones, Sesion } from '../types';
 import {
   toFechaISO,
   sumarDias,
-  esFinDeSemana,
   esDiaLaborable,
-  calcularDiasLectivos,
 } from '../utils/date-utils';
 
 // ============================================
@@ -437,8 +435,8 @@ export function calcularMetricas(
   }
 
   const fechasOrdenadas = [...todasLasFechas].sort();
-  const fechaInicio = fechasOrdenadas[0] || config.fechaInicio;
-  const fechaFin = fechasOrdenadas[fechasOrdenadas.length - 1] || config.fechaInicio;
+  const fechaInicio = fechasOrdenadas[0] ?? config.fechaInicio;
+  const fechaFin = fechasOrdenadas[fechasOrdenadas.length - 1] ?? config.fechaInicio;
 
   return {
     totalModulos: modulos.length,
@@ -489,7 +487,7 @@ export function recalcularCascada(
 
   // Keep modules before the moved one unchanged
   for (let i = moduloMovidoIndex + 1; i < resultado.length; i++) {
-    const prevModulo = resultado[i - 1];
+    const prevModulo = resultado[i - 1]!;
     const ultimaSesion = prevModulo.sesiones[prevModulo.sesiones.length - 1];
 
     if (!ultimaSesion) continue;
