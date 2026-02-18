@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   calcularDistribucionPedagogicaConBloom,
   sugerirBloomPorNivel,
@@ -20,18 +20,20 @@ import type {
   ConfiguracionCalendario,
 } from './engine/calendarEngine';
 import { DEFAULT_TURNOS } from './engine/calendarEngine';
-import type { Capacidad } from './types';
+import { PDFUpload } from './components/PDFUpload';
+import type { FichaSEPE } from './engine/sepeParser';
+import type { Capacidad, Certificado } from './types';
 
 // ============================================
 // DEMO DATA — HOTR0208 Operaciones Básicas de Cocina
 // ============================================
-const DEMO_CERT = {
+const DEMO_CERT: any = {
   codigo: 'HOTR0208',
-  titulo: 'Operaciones Básicas de Cocina',
-  nivel: 2 as const,
+  nombre: 'Operaciones Básicas de Cocina',
+  nivel: 2,
   modulos: [
     {
-      id: 'mf01', codigo: 'MF0255_1', titulo: 'Aprovisionamiento, preelaboración y conservación culinarios',
+      codigo: 'MF0255_1', titulo: 'Aprovisionamiento, preelaboración y conservación culinarios',
       horas: 120,
       capacidades: [
         { id: 'C1', descripcion: 'Recepcionar materias primas para su posterior almacenamiento y distribución', criterios: [
@@ -51,9 +53,10 @@ const DEMO_CERT = {
           { id: 'CE4.2', descripcion: 'Realizar procedimientos de envasado y conservación' },
         ]},
       ] as Capacidad[],
+      contenidos: [],
     },
     {
-      id: 'mf02', codigo: 'MF0256_1', titulo: 'Elaboración culinaria básica',
+      codigo: 'MF0256_1', titulo: 'Elaboración culinaria básica',
       horas: 150,
       capacidades: [
         { id: 'C1', descripcion: 'Realizar elaboraciones culinarias básicas de múltiples aplicaciones', criterios: [
@@ -69,18 +72,20 @@ const DEMO_CERT = {
           { id: 'CE3.2', descripcion: 'Realizar platos combinados y aperitivos' },
         ]},
       ] as Capacidad[],
+      contenidos: [],
     },
     {
-      id: 'mf03', codigo: 'MP0015', titulo: 'Módulo de prácticas profesionales no laborales',
+      codigo: 'MP0015', titulo: 'Módulo de prácticas profesionales no laborales',
       horas: 80,
       capacidades: [
-        { id: 'C1', descripcion: 'Participar en las operaciones de aprovisionamiento del centro de producción', criterios: [
+        { id: 'C1', descripcion: 'Participar en las operaciones de aprovisionamiento', criterios: [
           { id: 'CE1.1', descripcion: 'Colaborar en operaciones de recepción y almacenamiento' },
         ]},
         { id: 'C2', descripcion: 'Colaborar en preelaboraciones y elaboraciones culinarias', criterios: [
           { id: 'CE2.1', descripcion: 'Realizar tareas básicas de cocina bajo supervisión' },
         ]},
       ] as Capacidad[],
+      contenidos: [],
     },
   ],
 };
@@ -118,6 +123,7 @@ const ISLA_OPTIONS: { value: IslaCanaria; label: string }[] = [
 ];
 
 type Tab = 'calendario' | 'pedagogica';
+type DataSource = 'demo' | 'uploaded';
 
 // ============================================
 // APP
@@ -129,6 +135,23 @@ export function App() {
   const [turno, setTurno] = useState<'manana' | 'tarde' | 'completo'>('manana');
   const [fechaInicio, setFechaInicio] = useState('2025-09-15');
   const [selectedMod, setSelectedMod] = useState(0);
+  const [dataSource, setDataSource] = useState<DataSource>('demo');
+  const [activeCert, setActiveCert] = useState<Certificado>(DEMO_CERT);
+  const [fichaInfo, setFichaInfo] = useState<FichaSEPE | null>(null);
+
+  const handleCertificadoLoaded = useCallback((cert: Certificado, ficha: FichaSEPE) => {
+    setActiveCert(cert);
+    setFichaInfo(ficha);
+    setDataSource('uploaded');
+    setSelectedMod(0);
+  }, []);
+
+  const resetToDemo = useCallback(() => {
+    setActiveCert(DEMO_CERT);
+    setFichaInfo(null);
+    setDataSource('demo');
+    setSelectedMod(0);
+  }, []);
 
   // Calendar engine
   const calConfig: ConfiguracionCalendario = useMemo(() => ({
@@ -139,37 +162,34 @@ export function App() {
   }), [ccaa, isla, turno, fechaInicio]);
 
   const modulosCascada = useMemo(() =>
-    calcularModulosCascada(DEMO_CERT.modulos, calConfig),
-  [calConfig]);
+    calcularModulosCascada(activeCert.modulos.map((m, i) => ({ id: `mod-${i}`, ...m })), calConfig),
+  [activeCert, calConfig]);
 
   const metricas = useMemo(() => calcularMetricas(modulosCascada, calConfig), [modulosCascada, calConfig]);
   const coherencia = useMemo(() => verificarCoherencia(modulosCascada, calConfig), [modulosCascada, calConfig]);
 
   // Curriculum engine
+  const currentMod = activeCert.modulos[selectedMod];
   const distribucion = useMemo(() =>
-    calcularDistribucionPedagogicaConBloom(
-      DEMO_CERT.modulos[selectedMod].horas,
-      sugerirBloomPorNivel(DEMO_CERT.nivel, 4)
-    ),
-  [selectedMod]);
+    currentMod ? calcularDistribucionPedagogicaConBloom(
+      currentMod.horas,
+      sugerirBloomPorNivel(activeCert.nivel as 1 | 2 | 3, 4)
+    ) : null,
+  [currentMod, activeCert.nivel]);
 
   const capPorUA = useMemo(() =>
-    asignarCapacidadesAUA(DEMO_CERT.modulos[selectedMod].capacidades, distribucion.uas.length),
-  [selectedMod, distribucion]);
+    currentMod && distribucion
+      ? asignarCapacidadesAUA(currentMod.capacidades, distribucion.uas.length)
+      : [],
+  [currentMod, distribucion]);
 
   const sdas = useMemo(() =>
-    distribucion.uas.map((ua, i) =>
-      generarSdAParaUA(ua, capPorUA[i] || [], [])
-    ),
+    distribucion
+      ? distribucion.uas.map((ua, i) =>
+          generarSdAParaUA(ua, capPorUA[i] || [], [])
+        )
+      : [],
   [distribucion, capPorUA]);
-
-  const metTextos = useMemo(() =>
-    distribucion.uas.map(ua => {
-      const m = ua.metodoPrincipal;
-      const bloom = `Bloom ${ua.bloomLevel} (${ua.bloomLabel})`;
-      return `La metodología de la UA ${ua.numero} se basa en un enfoque ${m.toLowerCase()}, aplicando técnica ${ua.tecnicaBase} con agrupación ${ua.agrupacionSugerida}. Nivel ${bloom}. Duración: ${ua.horasTotales}h en ${ua.sdasAjustadas} situaciones de aprendizaje.`;
-    }),
-  [distribucion]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -181,16 +201,24 @@ export function App() {
               <img src="/logo-icon-color.png" alt="eFPear" className="h-10 w-10" />
               <div>
                 <h1 className="text-lg font-bold text-slate-900">eFPear <span className="text-green-700">CertiCalc</span></h1>
-                <p className="text-xs text-slate-500">Planificación formativa FP</p>
+                <p className="text-xs text-slate-500">Planificaci{'\u00F3'}n formativa FP</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
                 v2.2 beta
               </span>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">
-                Demo: {DEMO_CERT.codigo}
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                dataSource === 'uploaded' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
+              }`}>
+                {dataSource === 'uploaded' ? activeCert.codigo : `Demo: ${activeCert.codigo}`}
               </span>
+              {dataSource === 'uploaded' && (
+                <button onClick={resetToDemo}
+                  className="text-xs text-slate-500 hover:text-slate-700 underline">
+                  Volver a demo
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -200,8 +228,8 @@ export function App() {
       <nav className="bg-white border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-6">
           {[
-            { id: 'calendario' as Tab, icon: '📅', label: 'Planificación temporal' },
-            { id: 'pedagogica' as Tab, icon: '📚', label: 'Programación didáctica' },
+            { id: 'calendario' as Tab, icon: '\uD83D\uDCC5', label: 'Planificaci\u00F3n temporal' },
+            { id: 'pedagogica' as Tab, icon: '\uD83D\uDCDA', label: 'Programaci\u00F3n did\u00E1ctica' },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               className={`py-3 text-sm font-medium border-b-2 transition-colors ${
@@ -216,9 +244,15 @@ export function App() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20">
         {tab === 'calendario' ? (
           <div className="space-y-6">
+            {/* PDF Upload */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+              <h2 className="text-base font-semibold text-slate-900 mb-4">Cargar ficha SEPE</h2>
+              <PDFUpload onCertificadoLoaded={handleCertificadoLoaded} />
+            </div>
+
             {/* Config Panel */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-              <h2 className="text-base font-semibold text-slate-900 mb-4">Configuración regional y turnos</h2>
+              <h2 className="text-base font-semibold text-slate-900 mb-4">Configuraci{'\u00F3'}n regional y turnos</h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">CCAA</label>
@@ -240,9 +274,9 @@ export function App() {
                   <label className="block text-xs font-medium text-slate-600 mb-1">Turno</label>
                   <select value={turno} onChange={e => setTurno(e.target.value as any)}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                    <option value="manana">Mañana (5h/día)</option>
-                    <option value="tarde">Tarde (5h/día)</option>
-                    <option value="completo">Completo (8h/día)</option>
+                    <option value="manana">Ma{'\u00F1'}ana (5h/d{'\u00ED'}a)</option>
+                    <option value="tarde">Tarde (5h/d{'\u00ED'}a)</option>
+                    <option value="completo">Completo (8h/d{'\u00ED'}a)</option>
                   </select>
                 </div>
                 <div>
@@ -253,14 +287,41 @@ export function App() {
               </div>
             </div>
 
+            {/* Ficha Info (when uploaded) */}
+            {fichaInfo && (
+              <div className="bg-white rounded-xl border border-green-200 shadow-sm p-6">
+                <h2 className="text-base font-semibold text-green-800 mb-3">
+                  {fichaInfo.codigo} — {fichaInfo.titulo || 'Certificado cargado'}
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <div><span className="text-slate-500">Nivel:</span> <span className="font-medium">{fichaInfo.nivel}</span></div>
+                  <div><span className="text-slate-500">Familia:</span> <span className="font-medium">{fichaInfo.familiaProfesional}</span></div>
+                  <div><span className="text-slate-500">Horas totales:</span> <span className="font-medium">{fichaInfo.horasTotales}h</span></div>
+                  <div><span className="text-slate-500">M{'\u00F3'}dulos:</span> <span className="font-medium">{fichaInfo.modulos.length}</span></div>
+                </div>
+                {fichaInfo.unidadesCompetencia.length > 0 && (
+                  <div className="mt-4 border-t border-slate-100 pt-3">
+                    <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Unidades de Competencia</h3>
+                    <div className="space-y-1">
+                      {fichaInfo.unidadesCompetencia.map(uc => (
+                        <div key={uc.codigo} className="text-xs text-slate-600">
+                          <span className="font-medium text-slate-900">{uc.codigo}</span> — {uc.descripcion}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Metrics Dashboard */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               {[
-                { label: 'Módulos', value: metricas.totalModulos, icon: '📦' },
-                { label: 'Horas totales', value: `${metricas.totalHoras}h`, icon: '⏱️' },
-                { label: 'Sesiones', value: metricas.totalSesiones, icon: '📋' },
-                { label: 'Días lectivos', value: metricas.totalDiasLectivos, icon: '📅' },
-                { label: 'Progreso', value: `${metricas.porcentajeCompletado}%`, icon: coherencia.coherente ? '✅' : '⚠️' },
+                { label: 'M\u00F3dulos', value: metricas.totalModulos, icon: '\uD83D\uDCE6' },
+                { label: 'Horas totales', value: `${metricas.totalHoras}h`, icon: '\u23F1\uFE0F' },
+                { label: 'Sesiones', value: metricas.totalSesiones, icon: '\uD83D\uDCCB' },
+                { label: 'D\u00EDas lectivos', value: metricas.totalDiasLectivos, icon: '\uD83D\uDCC5' },
+                { label: 'Progreso', value: `${metricas.porcentajeCompletado}%`, icon: coherencia.coherente ? '\u2705' : '\u26A0\uFE0F' },
               ].map(m => (
                 <div key={m.label} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 text-center">
                   <div className="text-2xl mb-1">{m.icon}</div>
@@ -273,25 +334,25 @@ export function App() {
             {/* Module Sessions Table */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200">
-                <h2 className="text-base font-semibold text-slate-900">Sesiones por módulo (cascada)</h2>
+                <h2 className="text-base font-semibold text-slate-900">Sesiones por m{'\u00F3'}dulo (cascada)</h2>
                 <p className="text-xs text-slate-500 mt-1">
-                  {metricas.fechaInicio} → {metricas.fechaFin} · {ccaa === 'canarias' ? `Canarias / ${isla}` : ccaa}
+                  {metricas.fechaInicio} {'\u2192'} {metricas.fechaFin} {'\u00B7'} {ccaa === 'canarias' ? `Canarias / ${isla}` : ccaa}
                 </p>
               </div>
               <div className="divide-y divide-slate-100">
                 {modulosCascada.map((mod, i) => {
                   const primeraSesion = mod.sesiones[0];
                   const ultimaSesion = mod.sesiones[mod.sesiones.length - 1];
+                  const colors = ['bg-green-600', 'bg-blue-600', 'bg-amber-600', 'bg-purple-600', 'bg-rose-600', 'bg-cyan-600', 'bg-indigo-600'];
+                  const lightColors = ['bg-green-100 text-green-700', 'bg-blue-100 text-blue-700', 'bg-amber-100 text-amber-700', 'bg-purple-100 text-purple-700', 'bg-rose-100 text-rose-700', 'bg-cyan-100 text-cyan-700', 'bg-indigo-100 text-indigo-700'];
                   return (
                     <div key={mod.id} className="px-6 py-4 hover:bg-slate-50 transition-colors">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <span className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-sm font-bold text-white ${
-                            i === 0 ? 'bg-green-600' : i === 1 ? 'bg-blue-600' : 'bg-amber-600'
-                          }`}>{i + 1}</span>
+                          <span className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-sm font-bold text-white ${colors[i % colors.length]}`}>{i + 1}</span>
                           <div>
                             <div className="text-sm font-medium text-slate-900">{mod.codigo}</div>
-                            <div className="text-xs text-slate-500">{DEMO_CERT.modulos[i].titulo}</div>
+                            <div className="text-xs text-slate-500 max-w-md truncate">{activeCert.modulos[i]?.titulo || ''}</div>
                           </div>
                         </div>
                         <div className="flex items-center gap-6 text-sm">
@@ -300,23 +361,21 @@ export function App() {
                             <div className="text-xs text-slate-500">{mod.sesiones.length} sesiones</div>
                           </div>
                           <div className="text-right text-xs text-slate-500">
-                            <div>{primeraSesion?.fecha || '—'}</div>
-                            <div>{ultimaSesion?.fecha || '—'}</div>
+                            <div>{primeraSesion?.fecha || '\u2014'}</div>
+                            <div>{ultimaSesion?.fecha || '\u2014'}</div>
                           </div>
                         </div>
                       </div>
                       {/* Session mini-timeline */}
                       <div className="mt-3 flex flex-wrap gap-1">
-                        {mod.sesiones.slice(0, 30).map((s, j) => (
-                          <div key={j} title={`${s.fecha} · ${s.horas}h`}
-                            className={`w-5 h-5 rounded text-[10px] flex items-center justify-center font-medium ${
-                              i === 0 ? 'bg-green-100 text-green-700' : i === 1 ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
-                            }`}>
+                        {mod.sesiones.slice(0, 40).map((s, j) => (
+                          <div key={j} title={`${s.fecha} \u00B7 ${s.horas}h`}
+                            className={`w-5 h-5 rounded text-[10px] flex items-center justify-center font-medium ${lightColors[i % lightColors.length]}`}>
                             {s.horas}
                           </div>
                         ))}
-                        {mod.sesiones.length > 30 && (
-                          <div className="w-5 h-5 rounded bg-slate-100 text-slate-500 text-[10px] flex items-center justify-center">+{mod.sesiones.length - 30}</div>
+                        {mod.sesiones.length > 40 && (
+                          <div className="w-5 h-5 rounded bg-slate-100 text-slate-500 text-[10px] flex items-center justify-center">+{mod.sesiones.length - 40}</div>
                         )}
                       </div>
                     </div>
@@ -331,7 +390,7 @@ export function App() {
                 <h3 className="text-sm font-semibold text-amber-800 mb-2">Alertas de coherencia</h3>
                 {coherencia.alertas.map((a, i) => (
                   <div key={i} className="text-xs text-amber-700 flex items-center gap-2 py-1">
-                    <span>{a.tipo === 'error' ? '🔴' : a.tipo === 'warning' ? '🟡' : 'ℹ️'}</span>
+                    <span>{a.tipo === 'error' ? '\uD83D\uDD34' : a.tipo === 'warning' ? '\uD83D\uDFE1' : '\u2139\uFE0F'}</span>
                     {a.mensaje}
                   </div>
                 ))}
@@ -343,80 +402,97 @@ export function App() {
           <div className="space-y-6">
             {/* Module Selector */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-              <h2 className="text-base font-semibold text-slate-900 mb-4">Seleccionar módulo formativo</h2>
-              <div className="flex gap-3">
-                {DEMO_CERT.modulos.map((m, i) => (
-                  <button key={m.id} onClick={() => setSelectedMod(i)}
-                    className={`flex-1 rounded-lg border-2 p-3 text-left transition-all ${
+              <h2 className="text-base font-semibold text-slate-900 mb-4">Seleccionar m{'\u00F3'}dulo formativo</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {activeCert.modulos.map((m, i) => (
+                  <button key={m.codigo} onClick={() => setSelectedMod(i)}
+                    className={`rounded-lg border-2 p-3 text-left transition-all ${
                       selectedMod === i
                         ? 'border-green-600 bg-green-50 shadow-sm'
                         : 'border-slate-200 hover:border-slate-300'
                     }`}>
                     <div className="text-sm font-semibold text-slate-900">{m.codigo}</div>
                     <div className="text-xs text-slate-500 mt-1 line-clamp-2">{m.titulo}</div>
-                    <div className="text-xs font-medium text-green-700 mt-2">{m.horas}h · {m.capacidades.length} capacidades</div>
+                    <div className="text-xs font-medium text-green-700 mt-2">{m.horas}h {'\u00B7'} {m.capacidades.length} capacidades</div>
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Distribution Summary */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-              <h2 className="text-base font-semibold text-slate-900 mb-1">Distribución pedagógica</h2>
-              <p className="text-xs text-slate-500 mb-4">
-                {DEMO_CERT.modulos[selectedMod].codigo} · {distribucion.horasTotalesMF}h → {distribucion.uas.length} UAs
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {distribucion.uas.map((ua, i) => (
-                  <div key={i} className="border border-slate-200 rounded-lg p-4 hover:border-green-300 transition-colors">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-bold text-slate-900">UA {ua.numero}</span>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                        ua.bloomLevel >= 4 ? 'bg-purple-100 text-purple-700' :
-                        ua.bloomLevel >= 3 ? 'bg-blue-100 text-blue-700' :
-                        'bg-slate-100 text-slate-700'
-                      }`}>
-                        Bloom {ua.bloomLevel} · {BLOOM_LABELS[ua.bloomLevel]}
-                      </span>
-                    </div>
-                    <div className="space-y-1 text-xs text-slate-600">
-                      <div className="flex justify-between">
-                        <span>Horas:</span>
-                        <span className="font-medium">{ua.horasTotales}h</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>SdAs:</span>
-                        <span className="font-medium">{ua.sdasAjustadas}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Método:</span>
-                        <span className="font-medium">{METODO_POR_BLOOM[ua.bloomLevel]}</span>
-                      </div>
-                      {capPorUA[i] && capPorUA[i].length > 0 && (
-                        <div className="pt-1 border-t border-slate-100 mt-2">
-                          <span className="text-slate-500">Capacidades: </span>
-                          {capPorUA[i].map(c => (
-                            <span key={c.id} className="inline-flex items-center px-1.5 py-0.5 rounded bg-green-50 text-green-700 text-xs font-medium mr-1">
-                              {c.id}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
+            {/* No capacidades warning for uploaded fichas */}
+            {dataSource === 'uploaded' && currentMod && currentMod.capacidades.length === 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <h3 className="text-sm font-semibold text-amber-800">{'\u26A0\uFE0F'} Ficha sin capacidades ni criterios</h3>
+                <p className="text-xs text-amber-700 mt-1">
+                  La ficha SEPE solo contiene la estructura de módulos/horas. Para ver la distribución pedagógica completa
+                  (UAs, SdAs, criterios), necesitas cargar el Anexo del Real Decreto (BOE) que contiene las capacidades
+                  y criterios de evaluación.
+                </p>
+                <p className="text-xs text-amber-600 mt-2">
+                  La distribución de horas y UAs por Bloom sí funciona — solo faltan las capacidades/criterios vinculados.
+                </p>
               </div>
-            </div>
+            )}
+
+            {/* Distribution Summary */}
+            {distribucion && (
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                <h2 className="text-base font-semibold text-slate-900 mb-1">Distribución pedagógica</h2>
+                <p className="text-xs text-slate-500 mb-4">
+                  {currentMod?.codigo} {'\u00B7'} {distribucion.horasTotalesMF}h {'\u2192'} {distribucion.uas.length} UAs
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {distribucion.uas.map((ua, i) => (
+                    <div key={i} className="border border-slate-200 rounded-lg p-4 hover:border-green-300 transition-colors">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-bold text-slate-900">UA {ua.numero}</span>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          ua.bloomLevel >= 4 ? 'bg-purple-100 text-purple-700' :
+                          ua.bloomLevel >= 3 ? 'bg-blue-100 text-blue-700' :
+                          'bg-slate-100 text-slate-700'
+                        }`}>
+                          Bloom {ua.bloomLevel} {'\u00B7'} {BLOOM_LABELS[ua.bloomLevel]}
+                        </span>
+                      </div>
+                      <div className="space-y-1 text-xs text-slate-600">
+                        <div className="flex justify-between">
+                          <span>Horas:</span>
+                          <span className="font-medium">{ua.horasTotales}h</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>SdAs:</span>
+                          <span className="font-medium">{ua.sdasAjustadas}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>M{'\u00E9'}todo:</span>
+                          <span className="font-medium">{METODO_POR_BLOOM[ua.bloomLevel]}</span>
+                        </div>
+                        {capPorUA[i] && capPorUA[i].length > 0 && (
+                          <div className="pt-1 border-t border-slate-100 mt-2">
+                            <span className="text-slate-500">Capacidades: </span>
+                            {capPorUA[i].map(c => (
+                              <span key={c.id} className="inline-flex items-center px-1.5 py-0.5 rounded bg-green-50 text-green-700 text-xs font-medium mr-1">
+                                {c.id}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* SdAs por UA */}
-            {distribucion.uas.map((ua, i) => (
+            {distribucion && sdas.length > 0 && sdas.some(s => s && s.length > 0) && distribucion.uas.map((ua, i) => (
               <div key={i} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-200 bg-slate-50">
                   <h3 className="text-sm font-semibold text-slate-900">
-                    UA {ua.numero} — Situaciones de Aprendizaje
+                    UA {ua.numero} {'\u2014'} Situaciones de Aprendizaje
                   </h3>
                   <p className="text-xs text-slate-500 mt-1">
-                    {sdas[i]?.length || 0} SdAs · {ua.horasTotales}h · Bloom {ua.bloomLevel} ({BLOOM_LABELS[ua.bloomLevel]})
+                    {sdas[i]?.length || 0} SdAs {'\u00B7'} {ua.horasTotales}h {'\u00B7'} Bloom {ua.bloomLevel} ({BLOOM_LABELS[ua.bloomLevel]})
                   </p>
                 </div>
                 <div className="divide-y divide-slate-100">
@@ -429,15 +505,17 @@ export function App() {
                           'bg-blue-100 text-blue-700'
                         }`}>{sda.fase}</span>
                         <span className="text-sm font-medium text-slate-900">SdA {sda.numero}</span>
-                        <span className="text-xs text-slate-500">{sda.duracionHoras}h · {sda.metodo} · {sda.agrupacion}</span>
+                        <span className="text-xs text-slate-500">{sda.duracionHoras}h {'\u00B7'} {sda.metodo} {'\u00B7'} {sda.agrupacion}</span>
                       </div>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {sda.criterios.map(c => (
-                          <span key={c.id} className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-xs">
-                            {c.id}
-                          </span>
-                        ))}
-                      </div>
+                      {sda.criterios.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {sda.criterios.map(c => (
+                            <span key={c.id} className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-xs">
+                              {c.id}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -445,17 +523,24 @@ export function App() {
             ))}
 
             {/* Methodology Text Preview */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-              <h2 className="text-base font-semibold text-slate-900 mb-4">Vista previa: Metodología (Anexo IV)</h2>
-              <div className="space-y-4">
-                {metTextos.map((texto, i) => (
-                  <div key={i} className="border-l-4 border-green-500 pl-4">
-                    <h4 className="text-sm font-semibold text-slate-900 mb-1">UA {i + 1}</h4>
-                    <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap">{texto}</p>
-                  </div>
-                ))}
+            {distribucion && (
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                <h2 className="text-base font-semibold text-slate-900 mb-4">Vista previa: Metodolog{'\u00ED'}a (Anexo IV)</h2>
+                <div className="space-y-4">
+                  {distribucion.uas.map((ua, i) => {
+                    const m = ua.metodoPrincipal;
+                    const bloom = `Bloom ${ua.bloomLevel} (${ua.bloomLabel})`;
+                    const texto = `La metodolog\u00EDa de la UA ${ua.numero} se basa en un enfoque ${m.toLowerCase()}, aplicando t\u00E9cnica ${ua.tecnicaBase} con agrupaci\u00F3n ${ua.agrupacionSugerida}. Nivel ${bloom}. Duraci\u00F3n: ${ua.horasTotales}h en ${ua.sdasAjustadas} situaciones de aprendizaje.`;
+                    return (
+                      <div key={i} className="border-l-4 border-green-500 pl-4">
+                        <h4 className="text-sm font-semibold text-slate-900 mb-1">UA {i + 1}</h4>
+                        <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap">{texto}</p>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </main>
@@ -464,7 +549,8 @@ export function App() {
       <footer className="fixed bottom-0 w-full bg-white border-t border-slate-200 py-2 z-10">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p className="text-xs text-slate-400">
-            eFPear CertiCalc v2.2 · Demo: {DEMO_CERT.codigo} {DEMO_CERT.titulo} · GDPR by design · 100% local
+            eFPear CertiCalc v2.2 {'\u00B7'} {dataSource === 'uploaded' ? activeCert.codigo : `Demo: ${activeCert.codigo}`}
+            {' '}{activeCert.nombre} {'\u00B7'} GDPR by design {'\u00B7'} 100% local
           </p>
         </div>
       </footer>
