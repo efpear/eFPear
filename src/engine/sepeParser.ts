@@ -1,17 +1,14 @@
 /**
- * sepeParser.ts — SEPE Ficha PDF Parser v3
+ * sepeParser.ts — SEPE Ficha PDF Parser v4
  *
  * Parses "Ficha de Certificado de Profesionalidad" PDFs from SEPE.
  * Extracts: certificate metadata, modules (MF), formative units (UF),
- * hours, competence units (UC), teacher requirements, and training spaces.
+ * hours, competence units (UC).
  *
- * Uses pdf.js (pdfjs-dist) for client-side PDF text extraction.
- * Deterministic: same PDF → same output.
- *
- * v3 fixes:
- * - Hours extracted from H.CP column (AFTER MF code), not H.Q (before)
- * - Position-aware PDF text extraction (Y/X coordinates)
- * - Code pattern stripping to avoid digit confusion
+ * v4 fixes:
+ * - Text extraction preserves pdf.js reading order (no Y-sort reversal)
+ * - Hours from H.CP column (AFTER MF code), not H.Q (before)
+ * - Code pattern stripping before number extraction
  */
 
 import type { Certificado, ModuloFormativo, Capacidad } from '../types';
@@ -21,13 +18,13 @@ import type { Certificado, ModuloFormativo, Capacidad } from '../types';
 // ============================================
 
 export interface UnidadFormativa {
-  codigo: string;       // UF2063
+  codigo: string;
   titulo: string;
   horas: number;
 }
 
 export interface UnidadCompetencia {
-  codigo: string;       // UC1254_3
+  codigo: string;
   descripcion: string;
 }
 
@@ -73,27 +70,21 @@ export interface ModuloSEPE {
 }
 
 // ============================================
-// REGEX PATTERNS
+// PATTERNS
 // ============================================
 
 const PATTERNS = {
   certificadoCodigo: /\(([A-Z]{4}\d{4})\)/,
   nivel: /NIV[:\s.]*(\d)/i,
-  moduloFormativo: /MF\d{4}_\d/g,
-  unidadFormativa: /UF\d{4}/g,
-  unidadCompetencia: /UC\d{4}_\d/g,
   moduloPracticas: /MP\d{4}/,
   regulacion: /\(RD\s+[\d/]+[^)]*\)/,
-  // Multiple hour patterns found across SEPE fichas
   horasTotales: /(?:horas?\s+totales?\s+certificado|[Dd]uraci[oó]n\s+horas?\s+totales)[:\s]*(\d+)/i,
   horasFormativas: /(?:horas?\s+m[oó]dulos?\s+formativos?|[Dd]uraci[oó]n\s+horas?\s+m[oó]dulos?)[:\s]*(\d+)/i,
   familia: /(?:Familia\s+profesional|FAMILIA\s+PROFESIONAL)[:\s]*([^\n]+)/i,
   area: /(?:[AÁ]rea\s+profesional|[AÁ]REA\s+PROFESIONAL)[:\s]*([^\n]+)/i,
-  // Strip all code-like patterns from text before number extraction
   allCodes: /(?:MF\d{4}_\d|UF\d{4}|UC\d{4}_\d|MP\d{4}|CE\d+\.\d+)/g,
 };
 
-/** Remove code patterns so their digits don't interfere with number extraction */
 function stripCodes(text: string): string {
   return text.replace(PATTERNS.allCodes, ' ');
 }
@@ -107,12 +98,10 @@ export function parseFichaTexto(text: string): FichaSEPE {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
   const fullText = lines.join(' ');
 
-  // 1. Certificate code
   const codigoMatch = fullText.match(PATTERNS.certificadoCodigo);
   const codigo = codigoMatch?.[1] || '';
   if (!codigo) warnings.push('No se pudo extraer el código del certificado');
 
-  // 2. Title
   let titulo = '';
   if (codigoMatch) {
     const afterCode = fullText.substring((codigoMatch.index || 0) + codigoMatch[0].length);
@@ -120,31 +109,22 @@ export function parseFichaTexto(text: string): FichaSEPE {
     titulo = tituloMatch?.[1]?.trim() || '';
   }
 
-  // 3. Level
   const nivelMatch = fullText.match(PATTERNS.nivel);
   const nivel = (nivelMatch ? parseInt(nivelMatch[1]) : 0) as 1 | 2 | 3;
   if (!nivel) warnings.push('No se pudo extraer el nivel');
 
-  // 4. Family & Area
   const familiaMatch = fullText.match(PATTERNS.familia);
   const familiaProfesional = familiaMatch?.[1]?.trim() || '';
   const areaMatch = fullText.match(PATTERNS.area);
   const areaProfesional = areaMatch?.[1]?.trim() || '';
 
-  // 5. Regulation
   const regulacionMatch = fullText.match(PATTERNS.regulacion);
   const regulacion = regulacionMatch?.[0] || '';
 
-  // 6. Competencia general
   const competenciaGeneral = extractCompetenciaGeneral(fullText);
-
-  // 7. UC units
   const unidadesCompetencia = extractUnidadesCompetencia(text);
-
-  // 8. Modules with UFs
   const { modulos, practicasModulo } = extractModulos(text, fullText);
 
-  // 9. Hours — prefer explicit "Duración" patterns, then sum from modules
   const horasTotalesMatch = fullText.match(PATTERNS.horasTotales);
   const horasFormativasMatch = fullText.match(PATTERNS.horasFormativas);
   const horasFromModulos = modulos.reduce((s, m) => s + m.horas, 0);
@@ -152,25 +132,13 @@ export function parseFichaTexto(text: string): FichaSEPE {
   const horasTotales = horasTotalesMatch ? parseInt(horasTotalesMatch[1]) : horasFromModulos + horasFromPracticas;
   const horasFormativas = horasFormativasMatch ? parseInt(horasFormativasMatch[1]) : horasFromModulos;
 
-  // 10. Occupations
   const ocupaciones = extractOcupaciones(text);
 
-  // 11. Requisitos formadores
-  const requisitosFormadores = extractRequisitosFormadores(text);
-
-  // 12. Espacios formativos
-  const espaciosFormativos = extractEspacios(text);
-
-  // Validation
-  if (horasFromModulos === 0 && modulos.length > 0) {
-    warnings.push('No se pudieron extraer las horas de los módulos');
-  }
   const zeroMods = modulos.filter(m => m.horas === 0);
   if (zeroMods.length > 0) {
     warnings.push(`Módulos sin horas: ${zeroMods.map(m => m.codigo).join(', ')}`);
   }
 
-  // Debug log (visible in browser console)
   console.log(`[sepeParser] ${codigo}: ${modulos.length} MF, ${horasFormativas}h formativas, ${horasTotales}h total`);
   modulos.forEach(m => console.log(`  ${m.codigo}: ${m.horas}h (${m.unidadesFormativas.length} UFs)`));
   if (practicasModulo) console.log(`  ${practicasModulo.codigo}: ${practicasModulo.horas}h prácticas`);
@@ -179,7 +147,8 @@ export function parseFichaTexto(text: string): FichaSEPE {
   return {
     codigo, titulo, nivel, familiaProfesional, areaProfesional, regulacion,
     competenciaGeneral, unidadesCompetencia, modulos, practicasModulo,
-    horasTotales, horasFormativas, requisitosFormadores, espaciosFormativos,
+    horasTotales, horasFormativas,
+    requisitosFormadores: [], espaciosFormativos: [],
     ocupaciones, _parseWarnings: warnings,
   };
 }
@@ -191,7 +160,6 @@ export function parseFichaTexto(text: string): FichaSEPE {
 function extractCompetenciaGeneral(text: string): string {
   const startMarkers = ['Competencia general', 'COMPETENCIA GENERAL'];
   const endMarkers = ['Unidades de competencia', 'UNIDADES DE COMPETENCIA', 'Entorno Profesional', 'ENTORNO PROFESIONAL'];
-
   for (const start of startMarkers) {
     const startIdx = text.indexOf(start);
     if (startIdx === -1) continue;
@@ -200,8 +168,7 @@ function extractCompetenciaGeneral(text: string): string {
       const eIdx = text.indexOf(end, startIdx + start.length);
       if (eIdx !== -1 && eIdx < endIdx) endIdx = eIdx;
     }
-    const raw = text.substring(startIdx + start.length, endIdx).trim();
-    return raw.replace(/^[:\s.]+/, '').trim();
+    return text.substring(startIdx + start.length, endIdx).trim().replace(/^[:\s.]+/, '').trim();
   }
   return '';
 }
@@ -214,22 +181,11 @@ function extractUnidadesCompetencia(text: string): UnidadCompetencia[] {
     const codigo = match[1];
     let descripcion = match[2].trim().replace(/\s+\d+\s*$/, '').trim();
     if (descripcion.endsWith('.')) descripcion = descripcion.slice(0, -1).trim();
-    if (!ucs.find(u => u.codigo === codigo)) {
-      ucs.push({ codigo, descripcion });
-    }
+    if (!ucs.find(u => u.codigo === codigo)) ucs.push({ codigo, descripcion });
   }
   return ucs;
 }
 
-/**
- * Extract modules (MF) and prácticas (MP) from the ficha text.
- * 
- * SEPE ficha tables have two hour columns:
- * - H.Q (Horas Cualificación) — appears BEFORE the MF code
- * - H.CP (Horas Certificado Profesionalidad) — appears AFTER the MF code
- * 
- * We extract H.CP (the correct module hours for the certificado).
- */
 function extractModulos(text: string, fullText: string): { modulos: ModuloSEPE[]; practicasModulo: ModuloSEPE | null } {
   const modulos: ModuloSEPE[] = [];
   let practicasModulo: ModuloSEPE | null = null;
@@ -242,47 +198,35 @@ function extractModulos(text: string, fullText: string): { modulos: ModuloSEPE[]
     if (modulo) modulos.push(modulo);
   }
 
-  // Prácticas module
   if (mpMatch) {
     const mpCode = mpMatch[0];
     const mpIdx = fullText.indexOf(mpCode);
-    // Search AFTER the MP code only
     const afterMp = fullText.substring(mpIdx + mpCode.length);
     const cleanAfterMp = stripCodes(afterMp);
     const horasMatch = cleanAfterMp.match(/\b(\d{2,4})\b/);
     let horas = 0;
     if (horasMatch) {
-      const candidate = parseInt(horasMatch[1]);
-      if (candidate >= 20 && candidate <= 600) horas = candidate;
+      const c = parseInt(horasMatch[1]);
+      if (c >= 20 && c <= 600) horas = c;
     }
     if (horas === 0) horas = 120;
 
     practicasModulo = {
       codigo: mpCode,
       titulo: 'Módulo de prácticas profesionales no laborales',
-      horas,
-      unidadesFormativas: [],
-      esPracticas: true,
+      horas, unidadesFormativas: [], esPracticas: true,
     };
   }
 
   return { modulos, practicasModulo };
 }
 
-/**
- * Extract details for a single MF module.
- * 
- * Critical: only search for hours AFTER the MF code position on each line.
- * This ensures we get H.CP (certificado hours) and skip H.Q (cualificación hours).
- */
 function extractModuloDetails(text: string, mfCode: string): ModuloSEPE | null {
   const lines = text.split('\n');
   const mfLines: number[] = [];
-
   for (let i = 0; i < lines.length; i++) {
     if (lines[i].includes(mfCode)) mfLines.push(i);
   }
-
   if (mfLines.length === 0) return null;
 
   let horas = 0;
@@ -291,22 +235,14 @@ function extractModuloDetails(text: string, mfCode: string): ModuloSEPE | null {
 
   for (const line of contextLines) {
     const mfIdx = line.indexOf(mfCode);
-
-    // Only look at text AFTER the MF code (right side = H.CP column)
     const afterMF = mfIdx >= 0 ? line.substring(mfIdx + mfCode.length) : line;
     const cleanAfter = stripCodes(afterMF);
-
     const candidates = [...cleanAfter.matchAll(/\b(\d{2,3})\b/g)]
       .map(m => parseInt(m[1]))
       .filter(h => h >= 20 && h <= 500);
-
-    if (candidates.length > 0) {
-      horas = candidates[0];
-      break;
-    }
+    if (candidates.length > 0) { horas = candidates[0]; break; }
   }
 
-  // Fallback: "Xh" or "X horas" patterns in wider context
   if (horas === 0) {
     const widerContext = lines.slice(startLine, Math.min(startLine + 8, lines.length)).join(' ');
     const mfIdx = widerContext.indexOf(mfCode);
@@ -314,16 +250,14 @@ function extractModuloDetails(text: string, mfCode: string): ModuloSEPE | null {
     const cleanWider = stripCodes(afterMF);
     const horasPattern = cleanWider.match(/(\d{2,3})\s*(?:h\b|horas?\b)/i);
     if (horasPattern) {
-      const candidate = parseInt(horasPattern[1]);
-      if (candidate >= 20 && candidate <= 500) horas = candidate;
+      const c = parseInt(horasPattern[1]);
+      if (c >= 20 && c <= 500) horas = c;
     }
   }
 
-  // Find UFs
   const ufs: UnidadFormativa[] = [];
   const contextBlock = lines.slice(startLine, Math.min(startLine + 8, lines.length)).join(' ');
   const ufCodes = [...new Set([...contextBlock.matchAll(/UF\d{4}/g)].map(m => m[0]))];
-
   for (const ufCode of ufCodes) {
     const ufLine = lines.find(l => l.includes(ufCode)) || '';
     const ufIdx = ufLine.indexOf(ufCode);
@@ -331,10 +265,7 @@ function extractModuloDetails(text: string, mfCode: string): ModuloSEPE | null {
     const cleanUf = stripCodes(afterUF);
     const ufHorasMatch = cleanUf.match(/\b(\d{2,3})\b/);
     let ufHoras = 0;
-    if (ufHorasMatch) {
-      const c = parseInt(ufHorasMatch[1]);
-      if (c >= 10 && c <= 300) ufHoras = c;
-    }
+    if (ufHorasMatch) { const c = parseInt(ufHorasMatch[1]); if (c >= 10 && c <= 300) ufHoras = c; }
     ufs.push({ codigo: ufCode, titulo: '', horas: ufHoras });
   }
 
@@ -354,11 +285,8 @@ function extractOcupaciones(text: string): string[] {
   return ocupaciones;
 }
 
-function extractRequisitosFormadores(_text: string): RequisitosFormador[] { return []; }
-function extractEspacios(_text: string): EspacioFormativo[] { return []; }
-
 // ============================================
-// CONVERSION: FichaSEPE → Certificado
+// CONVERSION: FichaSEPE -> Certificado
 // ============================================
 
 export function fichaACertificado(ficha: FichaSEPE): Certificado {
@@ -389,12 +317,20 @@ export function fichaACertificado(ficha: FichaSEPE): Certificado {
 }
 
 // ============================================
-// PDF TEXT EXTRACTION
+// PDF TEXT EXTRACTION — v4 (reading-order preserving)
 // ============================================
 
 /**
- * Position-aware text extraction from PDF.
- * Groups text items by Y-coordinate, sorts by X within each line.
+ * Extract text from PDF using pdf.js, preserving reading order.
+ *
+ * pdf.js returns items in content-stream order (reading order for well-formed PDFs).
+ * Instead of sorting by Y (which can reverse the entire page), we:
+ * 1. Process items in pdf.js native order
+ * 2. Detect line breaks when Y changes significantly (>5px gap)
+ * 3. Sort items within each line by X for correct column order
+ *
+ * This correctly handles SEPE ficha tables where columns must be left-to-right
+ * and rows must be top-to-bottom.
  */
 export async function extractTextFromPDF(file: File): Promise<string> {
   const { pdfjsLib } = await import('./pdfSetup');
@@ -410,30 +346,33 @@ export async function extractTextFromPDF(file: File): Promise<string> {
     const items = content.items as Array<{ str: string; transform: number[] }>;
     if (items.length === 0) { pages.push(''); continue; }
 
-    // Group by Y (within 2px tolerance)
-    const lineMap = new Map<number, Array<{ x: number; text: string }>>();
+    // Process items in native order, group by Y proximity
+    const pageLines: string[] = [];
+    let currentLine: Array<{ x: number; text: string }> = [];
+    let currentY: number | null = null;
 
     for (const item of items) {
       if (!item.str.trim()) continue;
       const y = Math.round(item.transform[5]);
       const x = item.transform[4];
 
-      let lineY = y;
-      for (const existingY of lineMap.keys()) {
-        if (Math.abs(existingY - y) <= 2) { lineY = existingY; break; }
+      // If Y changed significantly, flush current line and start new one
+      if (currentY !== null && Math.abs(y - currentY) > 5) {
+        if (currentLine.length > 0) {
+          currentLine.sort((a, b) => a.x - b.x);
+          pageLines.push(currentLine.map(it => it.text).join(' '));
+        }
+        currentLine = [];
       }
 
-      if (!lineMap.has(lineY)) lineMap.set(lineY, []);
-      lineMap.get(lineY)!.push({ x, text: item.str.trim() });
+      currentLine.push({ x, text: item.str.trim() });
+      currentY = y;
     }
 
-    // Sort lines top-to-bottom (Y descending in PDF coords)
-    const sortedLines = [...lineMap.entries()].sort((a, b) => b[0] - a[0]);
-
-    const pageLines: string[] = [];
-    for (const [, lineItems] of sortedLines) {
-      lineItems.sort((a, b) => a.x - b.x);
-      pageLines.push(lineItems.map(i => i.text).join(' '));
+    // Flush last line
+    if (currentLine.length > 0) {
+      currentLine.sort((a, b) => a.x - b.x);
+      pageLines.push(currentLine.map(it => it.text).join(' '));
     }
 
     pages.push(pageLines.join('\n'));
@@ -448,6 +387,6 @@ export async function extractTextFromPDF(file: File): Promise<string> {
 
 export async function parseFichaPDF(file: File): Promise<FichaSEPE> {
   const text = await extractTextFromPDF(file);
-  console.log('[sepeParser] Raw text preview (first 500 chars):', text.substring(0, 500));
+  console.log('[sepeParser] Extracted text (first 800 chars):', text.substring(0, 800));
   return parseFichaTexto(text);
 }

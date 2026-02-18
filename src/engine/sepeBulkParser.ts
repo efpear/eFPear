@@ -49,52 +49,42 @@ const MIN_TEXT_LENGTH = 80; // fichas always have more than this
 // ============================================
 
 /**
- * Extract text from a PDF page using position-aware joining.
- * Groups text items by Y-coordinate to reconstruct proper lines,
- * then sorts items within each line by X-coordinate.
- * Much better than naive .join(' ') for table-heavy SEPE fichas.
+ * Extract text from a PDF page preserving reading order.
+ * Processes items in pdf.js native order (content-stream order).
+ * Detects line breaks from Y-coordinate gaps (>5px).
+ * Sorts items within each line by X for correct column order.
  */
 function extractPageText(items: Array<{ str: string; transform: number[] }>): string {
   if (items.length === 0) return '';
 
-  // Group by Y position (transform[5] is Y coordinate)
-  // Items within 2px tolerance are on the same line
-  const lineMap = new Map<number, Array<{ x: number; text: string }>>();
+  const pageLines: string[] = [];
+  let currentLine: Array<{ x: number; text: string }> = [];
+  let currentY: number | null = null;
 
   for (const item of items) {
     if (!item.str.trim()) continue;
-
     const y = Math.round(item.transform[5]);
     const x = item.transform[4];
 
-    // Find existing line within 2px tolerance
-    let lineY = y;
-    for (const existingY of lineMap.keys()) {
-      if (Math.abs(existingY - y) <= 2) {
-        lineY = existingY;
-        break;
+    if (currentY !== null && Math.abs(y - currentY) > 5) {
+      if (currentLine.length > 0) {
+        currentLine.sort((a, b) => a.x - b.x);
+        pageLines.push(currentLine.map(it => it.text).join(' '));
       }
+      currentLine = [];
     }
 
-    if (!lineMap.has(lineY)) {
-      lineMap.set(lineY, []);
-    }
-    lineMap.get(lineY)!.push({ x, text: item.str.trim() });
+    currentLine.push({ x, text: item.str.trim() });
+    currentY = y;
   }
 
-  // Sort lines by Y (descending — PDF Y starts from bottom)
-  const sortedLines = [...lineMap.entries()]
-    .sort((a, b) => b[0] - a[0]);
-
-  // Build text: sort items within each line by X, join with spaces
-  const pageLines: string[] = [];
-  for (const [, lineItems] of sortedLines) {
-    lineItems.sort((a, b) => a.x - b.x);
-    const lineText = lineItems.map(item => item.text).join(' ');
-    pageLines.push(lineText);
+  if (currentLine.length > 0) {
+    currentLine.sort((a, b) => a.x - b.x);
+    pageLines.push(currentLine.map(it => it.text).join(' '));
   }
 
-  return pageLines.join('\n');
+  return pageLines.join('
+');
 }
 
 // ============================================
