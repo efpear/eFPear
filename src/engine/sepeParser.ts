@@ -104,14 +104,29 @@ const PATTERNS = {
   // RD reference
   regulacion: /\(RD\s+[\d/]+[^)]*\)/,
 
-  // Hours patterns
-  horasTotales: /(?:horas?\s+totales?\s+certificado|duraci[oó]n\s+horas?\s+totales)[:\s]*(\d+)/i,
+  // Hours patterns — multiple variants found in SEPE fichas
+  horasTotales: /(?:horas?\s+totales?\s+certificado|duraci[oó]n\s+horas?\s+totales|total[:\s]+\d+\s*h)[:\s]*(\d+)/i,
   horasFormativas: /(?:horas?\s+m[oó]dulos?\s+formativos?|duraci[oó]n\s+horas?\s+m[oó]dulos?)[:\s]*(\d+)/i,
 
   // Family
   familia: /(?:Familia\s+profesional|FAMILIA\s+PROFESIONAL)[:\s]*([^\n]+)/i,
   area: /(?:[AÁ]rea\s+profesional|[AÁ]REA\s+PROFESIONAL)[:\s]*([^\n]+)/i,
+
+  // Code pattern to strip from text before extracting numbers
+  allCodes: /(?:MF\d{4}_\d|UF\d{4}|UC\d{4}_\d|MP\d{4}|CE\d+\.\d+)/g,
 };
+
+// ============================================
+// HELPER: Strip code patterns from text
+// ============================================
+
+/**
+ * Remove MF/UF/UC/MP/CE code patterns from text so their digits
+ * don't get confused with hours or other numeric fields.
+ */
+function stripCodePatterns(text: string): string {
+  return text.replace(PATTERNS.allCodes, ' ');
+}
 
 // ============================================
 // PARSER CORE
@@ -165,11 +180,13 @@ export function parseFichaTexto(text: string): FichaSEPE {
   // 8. Modules with UFs
   const { modulos, practicasModulo } = extractModulos(text, fullText);
 
-  // 9. Hours
+  // 9. Hours — try explicit patterns first, then sum from modules
   const horasTotalesMatch = fullText.match(PATTERNS.horasTotales);
   const horasFormativasMatch = fullText.match(PATTERNS.horasFormativas);
-  const horasTotales = horasTotalesMatch ? parseInt(horasTotalesMatch[1]) : modulos.reduce((s, m) => s + m.horas, 0) + (practicasModulo?.horas || 0);
-  const horasFormativas = horasFormativasMatch ? parseInt(horasFormativasMatch[1]) : modulos.reduce((s, m) => s + m.horas, 0);
+  const horasFromModulos = modulos.reduce((s, m) => s + m.horas, 0);
+  const horasFromPracticas = practicasModulo?.horas || 0;
+  const horasTotales = horasTotalesMatch ? parseInt(horasTotalesMatch[1]) : horasFromModulos + horasFromPracticas;
+  const horasFormativas = horasFormativasMatch ? parseInt(horasFormativasMatch[1]) : horasFromModulos;
 
   // 10. Occupations
   const ocupaciones = extractOcupaciones(text);
@@ -179,6 +196,15 @@ export function parseFichaTexto(text: string): FichaSEPE {
 
   // 12. Espacios formativos
   const espaciosFormativos = extractEspacios(text);
+
+  // Validation warnings
+  if (horasFromModulos === 0 && modulos.length > 0) {
+    warnings.push('No se pudieron extraer las horas de los módulos — revisa el PDF');
+  }
+  if (modulos.some(m => m.horas === 0)) {
+    const zeroCodes = modulos.filter(m => m.horas === 0).map(m => m.codigo);
+    warnings.push(`Módulos sin horas detectadas: ${zeroCodes.join(', ')}`);
+  }
 
   return {
     codigo,
@@ -250,8 +276,7 @@ function extractModulos(text: string, fullText: string): { modulos: ModuloSEPE[]
   const modulos: ModuloSEPE[] = [];
   let practicasModulo: ModuloSEPE | null = null;
 
-  // Find all MF codes with their hours
-  // Pattern in ficha tables: MF1254_3 ... 120 ... UF2063 ... 60
+  // Find all unique MF codes
   const mfCodes = [...new Set([...fullText.matchAll(/MF\d{4}_\d/g)].map(m => m[0]))];
   const mpMatch = fullText.match(/MP\d{4}/);
 
@@ -263,10 +288,22 @@ function extractModulos(text: string, fullText: string): { modulos: ModuloSEPE[]
   // Prácticas module
   if (mpMatch) {
     const mpCode = mpMatch[0];
-    // Find hours near MP code
-    const mpSection = fullText.substring(fullText.indexOf(mpCode));
-    const horasMatch = mpSection.match(/(\d{2,4})/);
-    const horas = horasMatch ? parseInt(horasMatch[1]) : 120; // default 120
+    // Find hours AFTER the MP code text — critical: don't match digits in "MP0435" itself
+    const mpIdx = fullText.indexOf(mpCode);
+    const afterMp = fullText.substring(mpIdx + mpCode.length);
+    // Strip any remaining code patterns
+    const cleanAfterMp = stripCodePatterns(afterMp);
+    // Look for standalone hours number
+    const horasMatch = cleanAfterMp.match(/\b(\d{2,4})\b/);
+    let horas = 0;
+    if (horasMatch) {
+      const candidate = parseInt(horasMatch[1]);
+      if (candidate >= 20 && candidate <= 600) {
+        horas = candidate;
+      }
+    }
+    // If no hours found, use 120 as reasonable default for prácticas
+    if (horas === 0) horas = 120;
 
     practicasModulo = {
       codigo: mpCode,
@@ -281,7 +318,6 @@ function extractModulos(text: string, fullText: string): { modulos: ModuloSEPE[]
 }
 
 function extractModuloDetails(text: string, mfCode: string): ModuloSEPE | null {
-  // Find the line containing this MF code
   const lines = text.split('\n');
   const mfLines: number[] = [];
 
@@ -293,38 +329,62 @@ function extractModuloDetails(text: string, mfCode: string): ModuloSEPE | null {
 
   if (mfLines.length === 0) return null;
 
-  // Extract hours — look for number patterns near the MF code
-  // In SEPE fichas, hours appear in table columns
+  // Extract hours from context around the MF code
+  // KEY FIX: strip all code patterns (MF/UF/UC/MP/CE) before looking for numbers
   let horas = 0;
-  const firstLine = lines[mfLines[0]];
-  const horasMatches = [...firstLine.matchAll(/\b(\d{2,3})\b/g)].map(m => parseInt(m[1]));
+  const startLine = mfLines[0];
+  const contextLines = lines.slice(startLine, Math.min(startLine + 5, lines.length));
 
-  // First number > 10 is typically the module hours
-  for (const h of horasMatches) {
-    if (h >= 20 && h <= 500) {
-      horas = h;
+  for (const line of contextLines) {
+    // Remove all code patterns so their digits don't interfere
+    const cleanLine = stripCodePatterns(line);
+
+    // Look for standalone numbers that could be hours (20-500)
+    const candidates = [...cleanLine.matchAll(/\b(\d{2,3})\b/g)]
+      .map(m => parseInt(m[1]))
+      .filter(h => h >= 20 && h <= 500);
+
+    if (candidates.length > 0) {
+      horas = candidates[0];
       break;
+    }
+  }
+
+  // Fallback: try looking for "Xh" or "X horas" patterns in wider context
+  if (horas === 0) {
+    const widerContext = lines.slice(startLine, Math.min(startLine + 8, lines.length)).join(' ');
+    const cleanWider = stripCodePatterns(widerContext);
+    const horasPattern = cleanWider.match(/(\d{2,3})\s*(?:h\b|horas?\b)/i);
+    if (horasPattern) {
+      const candidate = parseInt(horasPattern[1]);
+      if (candidate >= 20 && candidate <= 500) {
+        horas = candidate;
+      }
     }
   }
 
   // Find UFs associated with this module
   const ufs: UnidadFormativa[] = [];
   const ufRegex = /UF\d{4}/g;
-
-  // Look in nearby lines (within 5 lines after MF mention)
-  const startLine = mfLines[0];
   const contextBlock = lines.slice(startLine, Math.min(startLine + 8, lines.length)).join(' ');
   const ufCodes = [...new Set([...contextBlock.matchAll(ufRegex)].map(m => m[0]))];
 
   for (const ufCode of ufCodes) {
-    // Find UF hours
     const ufLineText = lines.find(l => l.includes(ufCode)) || '';
-    const ufHorasMatch = ufLineText.match(new RegExp(ufCode + '\\D*(\\d{2,3})'));
-    const ufHoras = ufHorasMatch ? parseInt(ufHorasMatch[1]) : 0;
+    // Clean codes before extracting UF hours
+    const cleanUfLine = stripCodePatterns(ufLineText);
+    const ufHorasMatch = cleanUfLine.match(/\b(\d{2,3})\b/);
+    let ufHoras = 0;
+    if (ufHorasMatch) {
+      const candidate = parseInt(ufHorasMatch[1]);
+      if (candidate >= 10 && candidate <= 300) {
+        ufHoras = candidate;
+      }
+    }
 
     ufs.push({
       codigo: ufCode,
-      titulo: '', // Title not always in ficha
+      titulo: '',
       horas: ufHoras,
     });
   }
@@ -335,7 +395,7 @@ function extractModuloDetails(text: string, mfCode: string): ModuloSEPE | null {
 
   return {
     codigo: mfCode,
-    titulo: '', // Will be filled from UC mapping or manually
+    titulo: '',
     horas,
     nivel,
     unidadesFormativas: ufs,
@@ -358,7 +418,6 @@ function extractOcupaciones(text: string): string[] {
 
 function extractRequisitosFormadores(text: string): RequisitosFormador[] {
   // Basic extraction — this section varies a lot between fichas
-  // Return empty if not clearly parseable
   return [];
 }
 
@@ -410,7 +469,7 @@ export function fichaACertificado(ficha: FichaSEPE): Certificado {
 
 /**
  * Extract text from a PDF file using pdf.js.
- * Call this from the UI component after user selects a file.
+ * Uses position-aware text joining for better table/layout extraction.
  */
 export async function extractTextFromPDF(file: File): Promise<string> {
   const { pdfjsLib } = await import('./pdfSetup');
@@ -422,10 +481,59 @@ export async function extractTextFromPDF(file: File): Promise<string> {
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const content = await page.getTextContent();
-    const pageText = content.items
-      .map((item: any) => item.str)
-      .join(' ');
-    pages.push(pageText);
+
+    // Position-aware text joining:
+    // Group items by Y-coordinate to reconstruct lines,
+    // then join items within each line with spaces.
+    const items = content.items as Array<{
+      str: string;
+      transform: number[];
+      hasEOL?: boolean;
+    }>;
+
+    if (items.length === 0) {
+      pages.push('');
+      continue;
+    }
+
+    // Group by Y position (transform[5] is the Y coordinate)
+    // Items with similar Y (within 2px) are on the same line
+    const lineMap = new Map<number, Array<{ x: number; text: string }>>();
+
+    for (const item of items) {
+      if (!item.str.trim()) continue;
+
+      const y = Math.round(item.transform[5]);
+      const x = item.transform[4];
+
+      // Find existing line within 2px tolerance
+      let lineY = y;
+      for (const existingY of lineMap.keys()) {
+        if (Math.abs(existingY - y) <= 2) {
+          lineY = existingY;
+          break;
+        }
+      }
+
+      if (!lineMap.has(lineY)) {
+        lineMap.set(lineY, []);
+      }
+      lineMap.get(lineY)!.push({ x, text: item.str.trim() });
+    }
+
+    // Sort lines by Y (descending, since PDF Y starts from bottom)
+    const sortedLines = [...lineMap.entries()]
+      .sort((a, b) => b[0] - a[0]);
+
+    // Build page text: sort items within each line by X, join with spaces
+    const pageLines: string[] = [];
+    for (const [, lineItems] of sortedLines) {
+      lineItems.sort((a, b) => a.x - b.x);
+      const lineText = lineItems.map(item => item.text).join(' ');
+      pageLines.push(lineText);
+    }
+
+    pages.push(pageLines.join('\n'));
   }
 
   return pages.join('\n\n--- PAGE BREAK ---\n\n');
