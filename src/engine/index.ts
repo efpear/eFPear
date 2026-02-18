@@ -3,6 +3,34 @@
  * Central import point for all engines.
  */
 
+// Calendar Engine (sessions, holidays, cascade)
+export {
+  calcularSesionesModulo,
+  calcularModulosCascada,
+  verificarCoherencia,
+  calcularMetricas,
+  moverSesion,
+  recalcularCascada,
+  generarSetFestivos,
+  festivosNacionales,
+  festivosCanarias,
+  festivosAutonomicos,
+  semanaSanta,
+  DEFAULT_TURNOS,
+  DEFAULT_CONFIG,
+} from './calendarEngine';
+export type {
+  CCAA,
+  IslaCanaria,
+  Turno,
+  ConfiguracionTurnos,
+  ConfiguracionRegional,
+  ConfiguracionCalendario,
+  MetricasPlanificacion,
+  Alerta,
+  ResultadoCoherencia,
+} from './calendarEngine';
+
 // Distribution Engine (Bloom v1.1)
 export {
   calcularDistribucionPedagogicaConBloom,
