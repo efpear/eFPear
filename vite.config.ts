@@ -8,12 +8,12 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'logo.svg'],
+      includeAssets: ['logo-icon-color.png', 'logo-full-color.png', 'apple-touch-icon.png'],
       manifest: {
         name: 'eFPear CertiCalc',
         short_name: 'CertiCalc',
         description: 'Planificación de módulos formativos FP con Anexo IV automático',
-        theme_color: '#16a34a',
+        theme_color: '#1A5E42',
         background_color: '#ffffff',
         display: 'standalone',
         icons: [
