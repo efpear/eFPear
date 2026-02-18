@@ -1,6 +1,6 @@
 {
   "name": "efpear-certicalc",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "private": true,
   "type": "module",
   "description": "eFPear CertiCalc — Planificación de módulos FP con Anexo IV automático",
