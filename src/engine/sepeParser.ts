@@ -1,21 +1,26 @@
 /**
- * sepeParser.ts — SEPE Ficha PDF Parser v4
+ * sepeParser.ts -- SEPE Ficha / BOE PDF Parser v4.1
  *
- * Parses "Ficha de Certificado de Profesionalidad" PDFs from SEPE.
- * Extracts: certificate metadata, modules (MF), formative units (UF),
- * hours, competence units (UC).
+ * Parses "Ficha de Certificado de Profesionalidad" PDFs from SEPE
+ * and "Boletín Oficial del Estado" certificate PDFs.
  *
- * v4 fixes:
- * - Text extraction preserves pdf.js reading order (no Y-sort reversal)
- * - Hours from H.CP column (AFTER MF code), not H.Q (before)
- * - Code pattern stripping before number extraction
+ * v4.1 fix (MF0265_3 0h bug):
+ *   - extractModuloDetails now tries EVERY occurrence of the MF code
+ *     (not just mfLines[0]), so BOE body references do not shadow
+ *     the module-list entry.
+ *   - Strategy 1: (NNN horas) parenthetical pattern -- BOE standard,
+ *     highest confidence.
+ *   - Strategy 2: first valid number after the MF code (original).
+ *   - Strategy 3: max of all valid numbers in window fallback
+ *     (module total >= any individual UF hours).
+ *   - Window extended to 13 lines; also checks 2 lines before.
  */
 
 import type { Certificado, ModuloFormativo, Capacidad } from '../types';
 
-// ============================================
+// ============================================================
 // TYPES
-// ============================================
+// ============================================================
 
 export interface UnidadFormativa {
   codigo: string;
@@ -69,19 +74,19 @@ export interface ModuloSEPE {
   esPracticas: boolean;
 }
 
-// ============================================
+// ============================================================
 // PATTERNS
-// ============================================
+// ============================================================
 
 const PATTERNS = {
   certificadoCodigo: /\(([A-Z]{4}\d{4})\)/,
   nivel: /NIV[:\s.]*(\d)/i,
   moduloPracticas: /MP\d{4}/,
   regulacion: /\(RD\s+[\d/]+[^)]*\)/,
-  horasTotales: /(?:horas?\s+totales?\s+certificado|[Dd]uraci[oó]n\s+horas?\s+totales)[:\s]*(\d+)/i,
-  horasFormativas: /(?:horas?\s+m[oó]dulos?\s+formativos?|[Dd]uraci[oó]n\s+horas?\s+m[oó]dulos?)[:\s]*(\d+)/i,
+  horasTotales: /(?:horas?\s+totales?\s+certificado|[Dd]uraci[oo]n\s+horas?\s+totales)[:\s]*(\d+)/i,
+  horasFormativas: /(?:horas?\s+m[oo]dulos?\s+formativos?|[Dd]uraci[oo]n\s+horas?\s+m[oo]dulos?)[:\s]*(\d+)/i,
   familia: /(?:Familia\s+profesional|FAMILIA\s+PROFESIONAL)[:\s]*([^\n]+)/i,
-  area: /(?:[AÁ]rea\s+profesional|[AÁ]REA\s+PROFESIONAL)[:\s]*([^\n]+)/i,
+  area: /(?:[Aa]rea\s+profesional|[Aa]REA\s+PROFESIONAL)[:\s]*([^\n]+)/i,
   allCodes: /(?:MF\d{4}_\d|UF\d{4}|UC\d{4}_\d|MP\d{4}|CE\d+\.\d+)/g,
 };
 
@@ -89,9 +94,9 @@ function stripCodes(text: string): string {
   return text.replace(PATTERNS.allCodes, ' ');
 }
 
-// ============================================
+// ============================================================
 // PARSER CORE
-// ============================================
+// ============================================================
 
 export function parseFichaTexto(text: string): FichaSEPE {
   const warnings: string[] = [];
@@ -100,12 +105,12 @@ export function parseFichaTexto(text: string): FichaSEPE {
 
   const codigoMatch = fullText.match(PATTERNS.certificadoCodigo);
   const codigo = codigoMatch?.[1] || '';
-  if (!codigo) warnings.push('No se pudo extraer el código del certificado');
+  if (!codigo) warnings.push('No se pudo extraer el codigo del certificado');
 
   let titulo = '';
   if (codigoMatch) {
     const afterCode = fullText.substring((codigoMatch.index || 0) + codigoMatch[0].length);
-    const tituloMatch = afterCode.match(/^\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s,]+)/);
+    const tituloMatch = afterCode.match(/^\s*([A-Za-z\s,]+)/);
     titulo = tituloMatch?.[1]?.trim() || '';
   }
 
@@ -136,13 +141,13 @@ export function parseFichaTexto(text: string): FichaSEPE {
 
   const zeroMods = modulos.filter(m => m.horas === 0);
   if (zeroMods.length > 0) {
-    warnings.push(`Módulos sin horas: ${zeroMods.map(m => m.codigo).join(', ')}`);
+    warnings.push('Modulos sin horas detectadas: ' + zeroMods.map(m => m.codigo).join(', '));
   }
 
-  console.log(`[sepeParser] ${codigo}: ${modulos.length} MF, ${horasFormativas}h formativas, ${horasTotales}h total`);
-  modulos.forEach(m => console.log(`  ${m.codigo}: ${m.horas}h (${m.unidadesFormativas.length} UFs)`));
-  if (practicasModulo) console.log(`  ${practicasModulo.codigo}: ${practicasModulo.horas}h prácticas`);
-  if (warnings.length > 0) console.warn(`[sepeParser] Warnings:`, warnings);
+  console.log('[sepeParser v4.1] ' + codigo + ': ' + modulos.length + ' MF, ' + horasFormativas + 'h formativas, ' + horasTotales + 'h total');
+  modulos.forEach(m => console.log('  ' + m.codigo + ': ' + m.horas + 'h (' + m.unidadesFormativas.length + ' UFs)'));
+  if (practicasModulo) console.log('  ' + practicasModulo.codigo + ': ' + practicasModulo.horas + 'h practicas');
+  if (warnings.length > 0) console.warn('[sepeParser] Warnings:', warnings);
 
   return {
     codigo, titulo, nivel, familiaProfesional, areaProfesional, regulacion,
@@ -153,9 +158,9 @@ export function parseFichaTexto(text: string): FichaSEPE {
   };
 }
 
-// ============================================
+// ============================================================
 // EXTRACTION HELPERS
-// ============================================
+// ============================================================
 
 function extractCompetenciaGeneral(text: string): string {
   const startMarkers = ['Competencia general', 'COMPETENCIA GENERAL'];
@@ -203,17 +208,24 @@ function extractModulos(text: string, fullText: string): { modulos: ModuloSEPE[]
     const mpIdx = fullText.indexOf(mpCode);
     const afterMp = fullText.substring(mpIdx + mpCode.length);
     const cleanAfterMp = stripCodes(afterMp);
-    const horasMatch = cleanAfterMp.match(/\b(\d{2,4})\b/);
+    // Try (NNN horas) for MP too
+    const mpParenMatch = afterMp.match(/\((\d{2,3})\s*horas?\)/i);
     let horas = 0;
-    if (horasMatch) {
-      const c = parseInt(horasMatch[1]);
+    if (mpParenMatch) {
+      const c = parseInt(mpParenMatch[1]);
       if (c >= 20 && c <= 600) horas = c;
+    } else {
+      const horasMatch = cleanAfterMp.match(/\b(\d{2,4})\b/);
+      if (horasMatch) {
+        const c = parseInt(horasMatch[1]);
+        if (c >= 20 && c <= 600) horas = c;
+      }
     }
-    if (horas === 0) horas = 120;
+    if (horas === 0) horas = 120; // sensible default for MP
 
     practicasModulo = {
       codigo: mpCode,
-      titulo: 'Módulo de prácticas profesionales no laborales',
+      titulo: 'Modulo de practicas profesionales no laborales',
       horas, unidadesFormativas: [], esPracticas: true,
     };
   }
@@ -221,57 +233,91 @@ function extractModulos(text: string, fullText: string): { modulos: ModuloSEPE[]
   return { modulos, practicasModulo };
 }
 
+// ============================================================
+// CORE HOURS EXTRACTOR -- v4.1 multi-strategy
+// ============================================================
+
 function extractModuloDetails(text: string, mfCode: string): ModuloSEPE | null {
   const lines = text.split('\n');
-  const mfLines: number[] = [];
+
+  // Collect all line indices where this MF code appears
+  const mfLineNums: number[] = [];
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].includes(mfCode)) mfLines.push(i);
+    if (lines[i].includes(mfCode)) mfLineNums.push(i);
   }
-  if (mfLines.length === 0) return null;
+  if (mfLineNums.length === 0) return null;
 
   let horas = 0;
-  const startLine = mfLines[0];
-  const contextLines = lines.slice(startLine, Math.min(startLine + 5, lines.length));
 
-  for (const line of contextLines) {
-    const mfIdx = line.indexOf(mfCode);
-    const afterMF = mfIdx >= 0 ? line.substring(mfIdx + mfCode.length) : line;
-    const cleanAfter = stripCodes(afterMF);
-    const candidates = [...cleanAfter.matchAll(/\b(\d{2,3})\b/g)]
-      .map(m => parseInt(m[1]))
-      .filter(h => h >= 20 && h <= 500);
-    if (candidates.length > 0) { horas = candidates[0]; break; }
-  }
+  // Try EVERY occurrence of the MF code until we find a valid hour count.
+  // This is the key fix: BOE PDFs mention MF codes many times (competencias,
+  // contenidos, prescripciones). Only the module-list occurrence has the hours.
+  for (const startLine of mfLineNums) {
+    if (horas > 0) break;
 
-  if (horas === 0) {
-    const widerContext = lines.slice(startLine, Math.min(startLine + 8, lines.length)).join(' ');
-    const mfIdx = widerContext.indexOf(mfCode);
-    const afterMF = mfIdx >= 0 ? widerContext.substring(mfIdx + mfCode.length) : widerContext;
-    const cleanWider = stripCodes(afterMF);
-    const horasPattern = cleanWider.match(/(\d{2,3})\s*(?:h\b|horas?\b)/i);
-    if (horasPattern) {
-      const c = parseInt(horasPattern[1]);
-      if (c >= 20 && c <= 500) horas = c;
+    // Window: 2 lines before + 13 lines after the occurrence
+    const winStart = Math.max(0, startLine - 2);
+    const winEnd   = Math.min(lines.length, startLine + 14);
+    const window   = lines.slice(winStart, winEnd);
+    const winText  = window.join(' ');
+
+    // -- Strategy 1: (NNN horas) parenthetical -- BOE standard, highest confidence
+    const parenMatch = winText.match(/\((\d{2,3})\s*horas?\)/i);
+    if (parenMatch) {
+      const c = parseInt(parenMatch[1]);
+      if (c >= 20 && c <= 500) { horas = c; break; }
+    }
+
+    // -- Strategy 2: first valid number after the MF code in each line
+    for (const line of window) {
+      // Stop scan if a DIFFERENT MF code appears (start of next module)
+      const stripped = line.replace(new RegExp(mfCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '');
+      if (/MF\d{4}_\d/.test(stripped)) break;
+
+      const mfIdx    = line.indexOf(mfCode);
+      const afterMF  = mfIdx >= 0 ? line.substring(mfIdx + mfCode.length) : line;
+      const cleanAfter = stripCodes(afterMF);
+      const nums = [...cleanAfter.matchAll(/\b(\d{2,3})\b/g)]
+        .map(m => parseInt(m[1]))
+        .filter(h => h >= 20 && h <= 500);
+      if (nums.length > 0) { horas = nums[0]; break; }
+    }
+
+    // -- Strategy 3: max of all valid numbers in window (MF total >= any UF hours)
+    if (horas === 0) {
+      const allNums = [...stripCodes(winText).matchAll(/\b(\d{2,3})\b/g)]
+        .map(m => parseInt(m[1]))
+        .filter(h => h >= 20 && h <= 500);
+      if (allNums.length > 0) horas = Math.max(...allNums);
     }
   }
 
+  // UF extraction -- use a generous window from the FIRST occurrence
+  const startLine = mfLineNums[0];
+  const ufBlock   = lines.slice(startLine, Math.min(startLine + 14, lines.length)).join(' ');
+  const ufCodes   = [...new Set([...ufBlock.matchAll(/UF\d{4}/g)].map(m => m[0]))];
   const ufs: UnidadFormativa[] = [];
-  const contextBlock = lines.slice(startLine, Math.min(startLine + 8, lines.length)).join(' ');
-  const ufCodes = [...new Set([...contextBlock.matchAll(/UF\d{4}/g)].map(m => m[0]))];
+
   for (const ufCode of ufCodes) {
     const ufLine = lines.find(l => l.includes(ufCode)) || '';
-    const ufIdx = ufLine.indexOf(ufCode);
-    const afterUF = ufIdx >= 0 ? ufLine.substring(ufIdx + ufCode.length) : ufLine;
-    const cleanUf = stripCodes(afterUF);
-    const ufHorasMatch = cleanUf.match(/\b(\d{2,3})\b/);
+    // Try (NNN horas) for UF too
+    const ufParenMatch = ufLine.match(/\((\d{2,3})\s*horas?\)/i);
     let ufHoras = 0;
-    if (ufHorasMatch) { const c = parseInt(ufHorasMatch[1]); if (c >= 10 && c <= 300) ufHoras = c; }
+    if (ufParenMatch) {
+      const c = parseInt(ufParenMatch[1]);
+      if (c >= 10 && c <= 300) ufHoras = c;
+    } else {
+      const ufIdx    = ufLine.indexOf(ufCode);
+      const afterUF  = ufIdx >= 0 ? ufLine.substring(ufIdx + ufCode.length) : ufLine;
+      const cleanUf  = stripCodes(afterUF);
+      const ufMatch  = cleanUf.match(/\b(\d{2,3})\b/);
+      if (ufMatch) { const c = parseInt(ufMatch[1]); if (c >= 10 && c <= 300) ufHoras = c; }
+    }
     ufs.push({ codigo: ufCode, titulo: '', horas: ufHoras });
   }
 
   const nivelMatch = mfCode.match(/_(\d)$/);
   const nivel = nivelMatch ? parseInt(nivelMatch[1]) : undefined;
-
   return { codigo: mfCode, titulo: '', horas, nivel, unidadesFormativas: ufs, esPracticas: false };
 }
 
@@ -280,19 +326,19 @@ function extractOcupaciones(text: string): string[] {
   const ocuRegex = /(\d{4}\.\d{4})\s+([^\n]+)/g;
   let match;
   while ((match = ocuRegex.exec(text)) !== null) {
-    ocupaciones.push(`${match[1]} ${match[2].trim()}`);
+    ocupaciones.push(match[1] + ' ' + match[2].trim());
   }
   return ocupaciones;
 }
 
-// ============================================
+// ============================================================
 // CONVERSION: FichaSEPE -> Certificado
-// ============================================
+// ============================================================
 
 export function fichaACertificado(ficha: FichaSEPE): Certificado {
   const modulos: ModuloFormativo[] = ficha.modulos.map(m => ({
     codigo: m.codigo,
-    titulo: m.titulo || `Módulo ${m.codigo}`,
+    titulo: m.titulo || 'Modulo ' + m.codigo,
     horas: m.horas,
     capacidades: [],
     contenidos: [],
@@ -310,15 +356,15 @@ export function fichaACertificado(ficha: FichaSEPE): Certificado {
 
   return {
     codigo: ficha.codigo,
-    nombre: ficha.titulo || `Certificado ${ficha.codigo}`,
+    nombre: ficha.titulo || 'Certificado ' + ficha.codigo,
     nivel: ficha.nivel || 2,
     modulos,
   };
 }
 
-// ============================================
-// PDF TEXT EXTRACTION — v4 (reading-order preserving)
-// ============================================
+// ============================================================
+// PDF TEXT EXTRACTION -- v4 (reading-order preserving)
+// ============================================================
 
 /**
  * Extract text from PDF using pdf.js, preserving reading order.
@@ -381,9 +427,9 @@ export async function extractTextFromPDF(file: File): Promise<string> {
   return pages.join(String.fromCharCode(10) + String.fromCharCode(10) + '--- PAGE BREAK ---' + String.fromCharCode(10) + String.fromCharCode(10));
 }
 
-// ============================================
+// ============================================================
 // FULL PIPELINE
-// ============================================
+// ============================================================
 
 export async function parseFichaPDF(file: File): Promise<FichaSEPE> {
   const text = await extractTextFromPDF(file);
