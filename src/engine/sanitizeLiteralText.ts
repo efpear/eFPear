@@ -42,7 +42,7 @@ export function sanitizeLiteralText(raw: string | null | undefined): string {
   t = t.replace(INVISIBLE_CHARS, '');
 
   // 3. Remove non-printable control chars
-  t = t.replace(CONTROL_CHARS, '');
+  t = t.replace(CONTROL_CHARS, ' '); // space instead of '' to avoid merging words
 
   // 4. Normalize smart quotes → straight
   t = t.replace(/[\u2018\u2019\u201A\u201B]/g, "'");

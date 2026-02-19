@@ -29,6 +29,7 @@ import {
   type ITableCellOptions,
 } from 'docx';
 import type { BoeUFData } from '../types/boe';
+import { sanitizeLiteralText } from './sanitizeLiteralText';
 
 // ============================================
 // TYPES
@@ -90,7 +91,8 @@ const BORDERS_ALL = {
   right: BORDER_THIN,
 };
 
-function headerCell(text: string, width?: number): TableCell {
+function headerCell(rawText: string, width?: number): TableCell {
+  const text = sanitizeLiteralText(rawText);
   const opts: ITableCellOptions = {
     children: [
       new Paragraph({
@@ -105,7 +107,8 @@ function headerCell(text: string, width?: number): TableCell {
   return new TableCell(opts);
 }
 
-function textCell(text: string, width?: number, bold = false): TableCell {
+function textCell(rawText: string, width?: number, bold = false): TableCell {
+  const text = sanitizeLiteralText(rawText);
   const opts: ITableCellOptions = {
     children: [
       new Paragraph({
