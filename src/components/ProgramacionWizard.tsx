@@ -382,30 +382,313 @@ function Step2Criterios({
 // STEP 3: SdA BUILDER (placeholder for now)
 // ============================================
 
+/** Methodology options for SdA (from golden sample patterns) */
+const METODOLOGIAS = [
+  'Método interrogativo',
+  'Método expositivo-interrogativo',
+  'Expositivo con ejemplo aplicado',
+  'Aprendizaje basado en problemas',
+  'Expositivo-participativo',
+  'Estudio de caso',
+  'Análisis de textos y discusión guiada',
+  'Role-playing (simulación)',
+  'Método demostrativo',
+  'Investigación guiada y debate',
+  'Demostrativo en aula informática',
+  'Resolución de problemas',
+  'Demostrativo + práctica individual',
+  'Debate dirigido con análisis de dilemas',
+  'Clase de síntesis con participación activa',
+];
+
+/**
+ * Auto-generate SdA drafts from the CE × contenido cross.
+ * Strategy: 1 SdA per CE (or per small CE group), using literal BOE text.
+ */
+function autoGenerateSdAs(
+  uf: BoeUFData,
+  ua: UADefinition,
+  ceMap: Map<string, string[]>,
+): SdADraft[] {
+  // 1. Collect CEs for this UA
+  const ceIdsSet = new Set<string>();
+  ua.temaIndices.forEach(temaIdx => {
+    const tema = uf.contenidos[temaIdx];
+    tema?.items.forEach(item => {
+      const ces = ceMap.get(item.texto) || [];
+      ces.forEach(id => ceIdsSet.add(id));
+    });
+  });
+
+  // 2. Get full CE objects in order
+  const ceList: { id: string; texto: string; capId: string; capTexto: string }[] = [];
+  uf.capacidades.forEach(cap => {
+    cap.criterios.forEach(ce => {
+      if (ceIdsSet.has(ce.codigo)) {
+        ceList.push({ id: ce.codigo, texto: ce.texto, capId: cap.codigo, capTexto: cap.texto });
+      }
+    });
+  });
+
+  // 3. Calculate hours per SdA
+  const horasEval = Math.max(2, Math.round(ua.horas * 0.15)); // ~15% for evaluation
+  const horasAuto = Math.max(1, Math.round(ua.horas * 0.1));  // ~10% autonomous
+  const horasSdA = ua.horas - horasEval - horasAuto;
+
+  // Group CEs: pair small CEs, keep complex ones solo
+  const groups: typeof ceList[] = [];
+  let i = 0;
+  while (i < ceList.length) {
+    const ce = ceList[i];
+    // "En supuestos/casos prácticos" are typically longer → solo
+    if (ce.texto.length > 200 || /^en (supuestos?|casos?|diversas|situaciones)/i.test(ce.texto)) {
+      groups.push([ce]);
+      i++;
+    } else if (i + 1 < ceList.length && ceList[i + 1].texto.length < 150) {
+      // Pair two short CEs
+      groups.push([ce, ceList[i + 1]]);
+      i += 2;
+    } else {
+      groups.push([ce]);
+      i++;
+    }
+  }
+
+  const hoursPerSdA = groups.length > 0 ? Math.max(1, Math.round(horasSdA / groups.length)) : 2;
+
+  // 4. Generate SdA drafts
+  let sdaNum = 1;
+  return groups.map((ceGroup, gIdx) => {
+    const ceIds = ceGroup.map(ce => ce.id);
+    const primaryCE = ceGroup[0];
+    const tipo = clasificarCE(primaryCE.texto);
+
+    // Name: derive from CE text (first 60 chars + action focus)
+    const actionVerb = primaryCE.texto.match(/^(\w+)/)?.[1] || 'Actividad';
+    const topicSnippet = primaryCE.texto.substring(
+      primaryCE.texto.indexOf(' ') + 1,
+      Math.min(primaryCE.texto.length, 80)
+    ).replace(/[.,;:]$/, '');
+
+    // Methodology: pick based on tipología
+    const metIdx = gIdx % METODOLOGIAS.length;
+    const metodologia = tipo === 'destreza'
+      ? METODOLOGIAS[Math.min(metIdx + 3, METODOLOGIAS.length - 1)] // bias toward practical
+      : tipo === 'habilidad'
+        ? METODOLOGIAS[Math.min(metIdx + 6, METODOLOGIAS.length - 1)] // bias toward debate/roleplay
+        : METODOLOGIAS[metIdx]; // knowledge → expositivo
+
+    return {
+      numero: sdaNum++,
+      nombre: `${actionVerb.charAt(0).toUpperCase() + actionVerb.slice(1)} ${topicSnippet}`,
+      objetivo: ceGroup.map(ce => ce.texto).join(' '),
+      ceVinculados: ceIds,
+      metodologia,
+      desarrollo: `El alumnado ${primaryCE.texto.charAt(0).toLowerCase() + primaryCE.texto.slice(1)}`,
+      recursos: 'Pizarra, material de aula, presentación multimedia.',
+      tiempo: Math.min(hoursPerSdA, 4),
+    };
+  });
+}
+
 function Step3SdAs({
   uf,
   uaDefs,
+  sdaState,
+  onUpdateSdAs,
 }: {
   uf: BoeUFData;
   uaDefs: UADefinition[];
+  sdaState: Record<string, SdADraft[]>;
+  onUpdateSdAs: (uaId: string, sdas: SdADraft[]) => void;
 }) {
-  return (
-    <div className="space-y-4">
-      <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-        <p className="text-sm font-semibold text-amber-800">🚧 En construcción — Slice 3 Step 3</p>
-        <p className="text-xs text-amber-700 mt-1">
-          El constructor de Situaciones de Aprendizaje se activará en la próxima iteración.
-          Los pasos 1 y 2 ya son funcionales: asigna temas a UAs y verifica los criterios derivados.
-        </p>
-      </div>
+  const ceMap = useMemo(() => buildContenidoCEMap(uf), [uf]);
 
-      {uaDefs.map((ua, i) => {
-        const color = UA_COLORS[i % UA_COLORS.length];
+  // Auto-generate if empty
+  const ensureSdAs = useCallback((ua: UADefinition) => {
+    if (!sdaState[ua.id] || sdaState[ua.id].length === 0) {
+      const generated = autoGenerateSdAs(uf, ua, ceMap);
+      onUpdateSdAs(ua.id, generated);
+      return generated;
+    }
+    return sdaState[ua.id];
+  }, [uf, ceMap, sdaState, onUpdateSdAs]);
+
+  return (
+    <div className="space-y-6">
+      {uaDefs.map((ua, uaIdx) => {
+        const sdas = ensureSdAs(ua);
+        const color = UA_COLORS[uaIdx % UA_COLORS.length];
+        const totalHorasSdA = sdas.reduce((s, sda) => s + sda.tiempo, 0);
+        const horasEval = Math.max(2, Math.round(ua.horas * 0.15));
+        const horasAuto = Math.max(1, Math.round(ua.horas * 0.1));
+        const horasTarget = ua.horas - horasEval - horasAuto;
+
         return (
-          <div key={ua.id} className={`border rounded-lg ${color.border} ${color.bg} px-4 py-3`}>
-            <div className="flex items-center justify-between">
-              <span className={`text-sm font-bold ${color.text}`}>{ua.id}</span>
-              <span className="text-xs text-slate-500">{ua.horas}h — SdAs pendientes</span>
+          <div key={ua.id} className={`border rounded-lg overflow-hidden ${color.border}`}>
+            {/* UA Header */}
+            <div className={`px-4 py-3 ${color.bg} flex items-center justify-between`}>
+              <div className="flex items-center gap-3">
+                <span className={`text-sm font-bold ${color.text}`}>{ua.id}</span>
+                <span className="text-xs text-slate-500">{ua.horas}h total</span>
+              </div>
+              <div className="flex items-center gap-4 text-[10px] text-slate-500">
+                <span>Eval: {horasEval}h</span>
+                <span>Autónomo: {horasAuto}h</span>
+                <span className={totalHorasSdA === horasTarget ? 'text-green-600 font-medium' : 'text-amber-600 font-medium'}>
+                  SdAs: {totalHorasSdA}/{horasTarget}h
+                </span>
+                <span>{sdas.length} SdAs</span>
+              </div>
+            </div>
+
+            {/* SdA List */}
+            <div className="divide-y divide-slate-100">
+              {sdas.map((sda, sdaIdx) => (
+                <div key={sdaIdx} className="px-4 py-4 space-y-3">
+                  {/* SdA Header: number + name + time */}
+                  <div className="flex items-start gap-3">
+                    <span className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500 flex-shrink-0">
+                      {sda.numero}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <input
+                        type="text"
+                        value={sda.nombre}
+                        onChange={e => {
+                          const updated = [...sdas];
+                          updated[sdaIdx] = { ...sda, nombre: e.target.value };
+                          onUpdateSdAs(ua.id, updated);
+                        }}
+                        className="w-full text-sm font-semibold text-slate-900 border-0 border-b border-transparent hover:border-slate-200 focus:border-green-500 focus:ring-0 px-0 py-0.5 bg-transparent"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <input
+                        type="number"
+                        min={0.5}
+                        max={8}
+                        step={0.5}
+                        value={sda.tiempo}
+                        onChange={e => {
+                          const updated = [...sdas];
+                          updated[sdaIdx] = { ...sda, tiempo: parseFloat(e.target.value) || 1 };
+                          onUpdateSdAs(ua.id, updated);
+                        }}
+                        className="w-12 text-xs text-center border border-slate-200 rounded px-1 py-0.5"
+                      />
+                      <span className="text-[10px] text-slate-400">h</span>
+                    </div>
+                  </div>
+
+                  {/* CE badges */}
+                  <div className="flex flex-wrap gap-1 ml-9">
+                    {sda.ceVinculados.map(ceId => (
+                      <span key={ceId} className="inline-flex items-center px-1.5 py-0 rounded bg-green-50 text-green-700 text-[10px] font-medium">
+                        {ceId}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Editable fields */}
+                  <div className="ml-9 space-y-2">
+                    {/* Objetivo */}
+                    <div>
+                      <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Objetivo</label>
+                      <textarea
+                        value={sda.objetivo}
+                        onChange={e => {
+                          const updated = [...sdas];
+                          updated[sdaIdx] = { ...sda, objetivo: e.target.value };
+                          onUpdateSdAs(ua.id, updated);
+                        }}
+                        rows={2}
+                        className="w-full text-xs text-slate-600 border border-slate-100 rounded-md px-2 py-1.5 hover:border-slate-200 focus:border-green-500 focus:ring-1 focus:ring-green-200 resize-none"
+                      />
+                    </div>
+
+                    {/* Metodología */}
+                    <div>
+                      <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Metodología</label>
+                      <select
+                        value={sda.metodologia}
+                        onChange={e => {
+                          const updated = [...sdas];
+                          updated[sdaIdx] = { ...sda, metodologia: e.target.value };
+                          onUpdateSdAs(ua.id, updated);
+                        }}
+                        className="w-full text-xs border border-slate-100 rounded-md px-2 py-1.5 bg-white hover:border-slate-200 focus:border-green-500 focus:ring-1 focus:ring-green-200">
+                        {METODOLOGIAS.map(m => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Desarrollo */}
+                    <details className="group">
+                      <summary className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-slate-600">
+                        Desarrollo de la actividad ▸
+                      </summary>
+                      <textarea
+                        value={sda.desarrollo}
+                        onChange={e => {
+                          const updated = [...sdas];
+                          updated[sdaIdx] = { ...sda, desarrollo: e.target.value };
+                          onUpdateSdAs(ua.id, updated);
+                        }}
+                        rows={3}
+                        className="w-full mt-1 text-xs text-slate-600 border border-slate-100 rounded-md px-2 py-1.5 hover:border-slate-200 focus:border-green-500 focus:ring-1 focus:ring-green-200 resize-y"
+                      />
+                    </details>
+
+                    {/* Recursos */}
+                    <div>
+                      <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Recursos</label>
+                      <input
+                        type="text"
+                        value={sda.recursos}
+                        onChange={e => {
+                          const updated = [...sdas];
+                          updated[sdaIdx] = { ...sda, recursos: e.target.value };
+                          onUpdateSdAs(ua.id, updated);
+                        }}
+                        className="w-full text-xs text-slate-600 border border-slate-100 rounded-md px-2 py-1.5 hover:border-slate-200 focus:border-green-500 focus:ring-1 focus:ring-green-200"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Delete SdA button */}
+                  <div className="ml-9">
+                    <button
+                      onClick={() => {
+                        const updated = sdas.filter((_, idx) => idx !== sdaIdx);
+                        onUpdateSdAs(ua.id, updated);
+                      }}
+                      className="text-[10px] text-slate-300 hover:text-red-500 transition-colors">
+                      Eliminar SdA
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Add SdA button */}
+            <div className="px-4 py-2 bg-slate-50 border-t border-slate-100">
+              <button
+                onClick={() => {
+                  const newSda: SdADraft = {
+                    numero: sdas.length + 1,
+                    nombre: 'Nueva situación de aprendizaje',
+                    objetivo: '',
+                    ceVinculados: [],
+                    metodologia: METODOLOGIAS[0],
+                    desarrollo: '',
+                    recursos: 'Pizarra, material de aula.',
+                    tiempo: 2,
+                  };
+                  onUpdateSdAs(ua.id, [...sdas, newSda]);
+                }}
+                className="text-xs text-green-600 hover:text-green-700 font-medium">
+                + Añadir SdA
+              </button>
             </div>
           </div>
         );
@@ -433,6 +716,11 @@ const UA_COLORS = [
 
 export function ProgramacionWizard({ uf, moduloCodigo, moduloNombre }: ProgramacionWizardProps) {
   const [step, setStep] = useState<WizardStep>(1);
+  const [sdaState, setSdaState] = useState<Record<string, SdADraft[]>>({});
+
+  const handleUpdateSdAs = useCallback((uaId: string, sdas: SdADraft[]) => {
+    setSdaState(prev => ({ ...prev, [uaId]: sdas }));
+  }, []);
   const [uaDefs, setUaDefs] = useState<UADefinition[]>(() => [
     { id: 'UA1', titulo: '', horas: Math.round(uf.duracion / 2), temaIndices: [] },
     { id: 'UA2', titulo: '', horas: uf.duracion - Math.round(uf.duracion / 2), temaIndices: [] },
@@ -522,7 +810,7 @@ export function ProgramacionWizard({ uf, moduloCodigo, moduloNombre }: Programac
           />
         )}
         {step === 2 && <Step2Criterios uf={uf} uaDefs={uaDefs} />}
-        {step === 3 && <Step3SdAs uf={uf} uaDefs={uaDefs} />}
+        {step === 3 && <Step3SdAs uf={uf} uaDefs={uaDefs} sdaState={sdaState} onUpdateSdAs={handleUpdateSdAs} />}
       </div>
 
       {/* Navigation */}
