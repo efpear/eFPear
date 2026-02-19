@@ -102,8 +102,8 @@ function headerCell(rawText: string, width?: number): TableCell {
     ],
     shading: { fill: '2E7D32', type: ShadingType.CLEAR, color: 'auto' },
     borders: BORDERS_ALL,
+    ...(width ? { width: { size: width, type: WidthType.PERCENTAGE } } : {}),
   };
-  if (width) opts.width = { size: width, type: WidthType.PERCENTAGE };
   return new TableCell(opts);
 }
 
@@ -117,8 +117,8 @@ function textCell(rawText: string, width?: number, bold = false): TableCell {
       }),
     ],
     borders: BORDERS_ALL,
+    ...(width ? { width: { size: width, type: WidthType.PERCENTAGE } } : {}),
   };
-  if (width) opts.width = { size: width, type: WidthType.PERCENTAGE };
   return new TableCell(opts);
 }
 
@@ -131,8 +131,8 @@ function multiTextCell(lines: string[], width?: number): TableCell {
       })
     ),
     borders: BORDERS_ALL,
+    ...(width ? { width: { size: width, type: WidthType.PERCENTAGE } } : {}),
   };
-  if (width) opts.width = { size: width, type: WidthType.PERCENTAGE };
   return new TableCell(opts);
 }
 
