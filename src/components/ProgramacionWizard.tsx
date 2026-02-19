@@ -720,14 +720,16 @@ export function ProgramacionWizard({ uf, moduloCodigo, moduloNombre, moduloHoras
   }, []);
 
   const handleCreateUA = useCallback(() => {
-    const nextNum = uaDefs.length + 1;
-    setUaDefs(prev => [...prev, {
-      id: `UA${nextNum}`,
-      titulo: '',
-      horas: 10,
-      temaIndices: [],
-    }]);
-  }, [uaDefs.length]);
+    setUaDefs(prev => {
+      const nextNum = prev.length + 1;
+      return [...prev, {
+        id: `UA${nextNum}`,
+        titulo: '',
+        horas: 10,
+        temaIndices: [],
+      }];
+    });
+  }, []);
 
   const handleRemoveUA = useCallback((uaId: string) => {
     setUaDefs(prev => prev.filter(ua => ua.id !== uaId));
