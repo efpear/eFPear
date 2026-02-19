@@ -27,6 +27,9 @@ import { EligibilityCheck } from './components/EligibilityCheck';
 import { obtenerDatosUF, tieneDatosBoe } from './data/boeRegistry';
 import type { BoeUFData } from './types/boe';
 import type { Certificado } from './types';
+import { ProgramacionWizard } from './components/ProgramacionWizard';
+import { FLAGS } from './config/flags';
+import { codigosUFDisponibles } from './data/boeRegistry';
 
 // ============================================
 // DEMO DATA — HOTR0208 Operaciones Básicas de Cocina
@@ -143,6 +146,7 @@ export function App() {
   const [activeCert, setActiveCert] = useState<Certificado>(DEMO_CERT);
   const [fichaInfo, setFichaInfo] = useState<FichaSEPE | null>(null);
   const [eligibilityContext, setEligibilityContext] = useState<{ codigoMF: string; nombreMF: string } | null>(null);
+  const [selectedUF, setSelectedUF] = useState<string>('UF0048');
 
   const handleCertificadoLoaded = useCallback((cert: Certificado, ficha: FichaSEPE) => {
     setActiveCert(cert);
@@ -395,153 +399,56 @@ export function App() {
               </div>
             </div>
 
-            {/* Info: ficha sin capacidades BOE */}
-            {dataSource === 'uploaded' && currentMod && currentMod.capacidades.length === 0 && (
-              <div className={`border rounded-xl p-4 ${boeData ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'}`}>
-                <h3 className={`text-sm font-semibold ${boeData ? 'text-green-800' : 'text-blue-800'}`}>
-                  {boeData
-                    ? `Datos BOE disponibles: ${boeData.unidadesFormativas.length} UFs, ${boeData.unidadesFormativas.reduce((a, uf) => a + uf.capacidades.length, 0)} capacidades, ${boeData.unidadesFormativas.reduce((a, uf) => a + uf.capacidades.reduce((b, c) => b + c.criterios.length, 0), 0)} criterios`
-                    : 'Generando SdAs desde plantillas metodologicas'}
-                </h3>
-                <p className={`text-xs mt-1 ${boeData ? 'text-green-700' : 'text-blue-700'}`}>
-                  {boeData
-                    ? 'Las SdAs incluyen criterios de evaluacion y contenidos literales del BOE. Datos vinculados al Anexo del Real Decreto.'
-                    : 'Las SdAs se generan con textos pedagogicos basados en el nivel Bloom y las horas del modulo. Para vincular criterios de evaluacion (CE) especificos, carga el Anexo del Real Decreto (BOE).'}
-                </p>
-              </div>
-            )}
-
-            {/* Distribution Summary */}
-            {distribucion && (
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                <h2 className="text-base font-semibold text-slate-900 mb-1">Distribución pedagógica</h2>
-                <p className="text-xs text-slate-500 mb-4">
-                  {currentMod?.codigo} · {distribucion.horasTotalesMF}h → {distribucion.uas.length} UAs
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {distribucion.uas.map((ua, i) => (
-                    <div key={i} className="border border-slate-200 rounded-lg p-4 hover:border-green-300 transition-colors">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-bold text-slate-900">UA {ua.numero}</span>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          ua.bloomLevel >= 4 ? 'bg-purple-100 text-purple-700' :
-                          ua.bloomLevel >= 3 ? 'bg-blue-100 text-blue-700' :
-                          'bg-slate-100 text-slate-700'
-                        }`}>
-                          Bloom {ua.bloomLevel} · {BLOOM_LABELS[ua.bloomLevel]}
-                        </span>
-                      </div>
-                      <div className="space-y-1 text-xs text-slate-600">
-                        <div className="flex justify-between">
-                          <span>Horas:</span>
-                          <span className="font-medium">{ua.horasTotales}h</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>SdAs:</span>
-                          <span className="font-medium">{ua.sdasAjustadas}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Método:</span>
-                          <span className="font-medium">{METODO_POR_BLOOM[ua.bloomLevel]}</span>
-                        </div>
-                        {sdas[i] && sdas[i].length > 0 && (
-                          <div className="pt-1 border-t border-slate-100 mt-2">
-                            <span className="text-slate-500">SdAs generadas: </span>
-                            <span className="font-medium text-green-700">{sdas[i].length}</span>
-                          </div>
-                        )}
-                      </div>
+            {/* Wizard: if BOE data available and flag enabled */}
+            {FLAGS.ENABLE_PROGRAMACION_WIZARD && currentMod && boeData ? (() => {
+              // Find UFs for this module and show wizard for each
+              const ufs = boeData.unidadesFormativas;
+              return (
+                <div className="space-y-6">
+                  {/* UF Selector if multiple */}
+                  {ufs.length > 1 && (
+                    <div className="flex gap-2 flex-wrap">
+                      {ufs.map(uf => (
+                        <button
+                          key={uf.codigo}
+                          onClick={() => setSelectedUF(uf.codigo)}
+                          className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
+                            selectedUF === uf.codigo
+                              ? 'border-green-600 bg-green-50 text-green-700'
+                              : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                          }`}>
+                          {uf.codigo} ({uf.duracion}h)
+                        </button>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                  )}
 
-            {/* SdAs por UA — Generador Avanzado v1.2 */}
-            {distribucion && sdas.length > 0 && sdas.some(s => s && s.length > 0) && distribucion.uas.map((ua, i) => (
-              <div key={i} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-200 bg-slate-50">
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    UA {ua.numero} — Situaciones de Aprendizaje
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {sdas[i]?.length || 0} SdAs · {ua.horasTotales}h · Bloom {ua.bloomLevel} ({BLOOM_LABELS[ua.bloomLevel]})
-                  </p>
-                </div>
-                <div className="divide-y divide-slate-100">
-                  {(sdas[i] || []).map((sda, j) => (
-                    <div key={j} className="px-6 py-4 space-y-3">
-                      {/* Header: fase + nombre + tiempo */}
-                      <div className="flex items-start gap-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 ${
-                          sda.fase === 'Inicio' ? 'bg-emerald-100 text-emerald-700' :
-                          sda.fase === 'Cierre' ? 'bg-red-100 text-red-700' :
-                          'bg-blue-100 text-blue-700'
-                        }`}>{sda.fase}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-semibold text-slate-900">{sda.nombre}</div>
-                          <div className="text-xs text-slate-500 mt-0.5">{sda.tiempo}h</div>
-                        </div>
-                      </div>
-
-                      {/* CE vinculados */}
-                      {sda.ceVinculado.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {sda.ceVinculado.map((ce, k) => (
-                            <span key={k} className="inline-flex items-center px-1.5 py-0.5 rounded bg-green-50 text-green-700 text-xs font-medium">
-                              {ce}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Objetivo */}
-                      <div>
-                        <div className="text-xs font-semibold text-slate-700 mb-1">Objetivo</div>
-                        <p className="text-xs text-slate-600 leading-relaxed">{sda.objetivo}</p>
-                      </div>
-
-                      {/* Metodologia */}
-                      <div>
-                        <div className="text-xs font-semibold text-slate-700 mb-1">Metodologia</div>
-                        <p className="text-xs text-slate-600 leading-relaxed">{sda.metodologia}</p>
-                      </div>
-
-                      {/* Desarrollo */}
-                      <details className="group">
-                        <summary className="text-xs font-semibold text-slate-700 cursor-pointer hover:text-green-700">
-                          Desarrollo de la actividad ▸
-                        </summary>
-                        <p className="text-xs text-slate-600 leading-relaxed mt-1 whitespace-pre-line">{sda.desarrollo}</p>
-                      </details>
-
-                      {/* Recursos */}
-                      <div className="text-xs text-slate-500">
-                        <span className="font-medium text-slate-600">Recursos: </span>{sda.recursos}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-
-            {/* Methodology Text Preview */}
-            {distribucion && (
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                <h2 className="text-base font-semibold text-slate-900 mb-4">Vista previa: Metodología (Anexo IV)</h2>
-                <div className="space-y-4">
-                  {distribucion.uas.map((ua, i) => {
-                    const m = ua.metodoPrincipal;
-                    const bloom = `Bloom ${ua.bloomLevel} (${ua.bloomLabel})`;
-                    const texto = `La metodología de la UA ${ua.numero} se basa en un enfoque ${m.toLowerCase()}, aplicando técnica ${ua.tecnicaBase} con agrupación ${ua.agrupacionSugerida}. Nivel ${bloom}. Duración: ${ua.horasTotales}h en ${ua.sdasAjustadas} situaciones de aprendizaje.`;
+                  {/* Wizard for selected UF */}
+                  {(() => {
+                    const activeUF = ufs.find(uf => uf.codigo === selectedUF) || ufs[0];
+                    if (!activeUF) return null;
                     return (
-                      <div key={i} className="border-l-4 border-green-500 pl-4">
-                        <h4 className="text-sm font-semibold text-slate-900 mb-1">UA {i + 1}</h4>
-                        <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap">{texto}</p>
-                      </div>
+                      <ProgramacionWizard
+                        key={activeUF.codigo}
+                        uf={activeUF}
+                        moduloCodigo={currentMod.codigo}
+                        moduloNombre={currentMod.titulo}
+                      />
                     );
-                  })}
+                  })()}
                 </div>
+              );
+            })() : (
+              /* Fallback: old distribution engine when no BOE data */
+              <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+                <h3 className="text-sm font-semibold text-blue-800">
+                  Datos BOE necesarios
+                </h3>
+                <p className="text-xs text-blue-700 mt-1">
+                  El Wizard de Programación Didáctica (Regla Minerva) requiere datos BOE estructurados.
+                  Actualmente disponibles: {codigosUFDisponibles().join(', ') || 'ninguno'}.
+                  Carga un certificado con datos BOE para activar el wizard.
+                </p>
               </div>
             )}
           </div>
