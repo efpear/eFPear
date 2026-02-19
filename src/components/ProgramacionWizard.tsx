@@ -11,8 +11,10 @@
  * Data flow: uses existing boeDataHOTA0308.ts as source (BoeUFData format)
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import type { BoeUFData, BoeCapacidad, BoeContenido } from '../types/boe';
+import { clasificarCE, TIPOLOGIA_COLORS, buildContenidoCEMap, collectCEsForTemas } from '../engine/ceUtils';
+import type { TipologiaCE } from '../engine/ceUtils';
 import { downloadAnexoIVDocx } from '../engine/anexoIVExport';
 import type { AnexoIVExportData, UAExport } from '../engine/anexoIVExport';
 
@@ -53,40 +55,23 @@ interface ProgramacionWizardProps {
   uf: BoeUFData;
   moduloCodigo: string;
   moduloNombre: string;
+  moduloHoras: number;
+  certificadoCodigo: string;
+  certificadoNombre: string;
+  certificadoDuracion: number;
 }
 
 // ============================================
 // CE CLASSIFICATION (deterministic, verb-based)
 // ============================================
 
-type TipologiaCE = 'conocimiento' | 'destreza' | 'habilidad';
 
-const CONOCIMIENTO_VERBS = ['describir', 'identificar', 'diferenciar', 'clasificar', 'definir', 'enumerar', 'reconocer', 'indicar', 'señalar', 'distinguir', 'relacionar', 'explicar', 'interpretar', 'citar'];
-const DESTREZA_VERBS = ['calcular', 'elaborar', 'comparar', 'determinar', 'aplicar', 'resolver', 'confeccionar', 'redactar', 'diseñar', 'realizar', 'evaluar', 'analizar', 'proponer', 'formular', 'plantear', 'estimar', 'seleccionar', 'utilizar', 'ejecutar', 'cumplimentar', 'comprobar', 'verificar'];
-const HABILIDAD_VERBS = ['justificar', 'argumentar', 'valorar', 'participar', 'colaborar', 'comunicar', 'demostrar', 'asumir', 'respetar', 'mantener', 'mostrar'];
 
-function clasificarCE(texto: string): TipologiaCE {
-  const t = texto.trim();
-  // Pattern overrides
-  if (/^en supuestos?\s+prácticos?/i.test(t)) return 'destreza';
-  if (/^en casos?\s+prácticos?/i.test(t)) return 'destreza';
-  if (/^en situaciones\s+prácticas/i.test(t)) return 'destreza';
-  if (/^en diversas\s+situaciones/i.test(t)) return 'destreza';
-  if (/^a partir de/i.test(t)) return 'destreza';
-  // First verb
-  const match = t.match(/^(\w+)/i);
-  const verb = match?.[1]?.toLowerCase() ?? '';
-  if (DESTREZA_VERBS.includes(verb)) return 'destreza';
-  if (HABILIDAD_VERBS.includes(verb)) return 'habilidad';
-  if (CONOCIMIENTO_VERBS.includes(verb)) return 'conocimiento';
-  return 'conocimiento';
-}
 
-const TIPOLOGIA_COLORS: Record<TipologiaCE, { bg: string; text: string; label: string }> = {
-  conocimiento: { bg: 'bg-blue-50', text: 'text-blue-700', label: 'Conocimiento' },
-  destreza: { bg: 'bg-amber-50', text: 'text-amber-700', label: 'Destreza' },
-  habilidad: { bg: 'bg-purple-50', text: 'text-purple-700', label: 'Habilidad' },
-};
+
+
+
+
 
 // ============================================
 // CONTENT-TO-CE MAPPING (from golden sample)
@@ -97,25 +82,7 @@ const TIPOLOGIA_COLORS: Record<TipologiaCE, { bg: string; text: string; label: s
  * For now, uses a heuristic: match CE codes mentioned in contenido items,
  * or fall back to matching by capacidad theme number.
  */
-function buildContenidoCEMap(uf: BoeUFData): Map<string, string[]> {
-  // For the golden case, we need to use the known mapping.
-  // In production, this would come from a parsed BOE structure.
-  // For now, we assign CEs to contenidos by matching tema number to capacidad number.
-  const map = new Map<string, string[]>();
 
-  uf.contenidos.forEach((tema, temaIdx) => {
-    // Find capacidad(es) that correspond to this theme
-    // Heuristic: tema index maps roughly to capacidad index
-    const cap = uf.capacidades[temaIdx];
-    const ceIds = cap ? cap.criterios.map(ce => ce.codigo) : [];
-
-    tema.items.forEach(item => {
-      map.set(item.texto, ceIds);
-    });
-  });
-
-  return map;
-}
 
 // ============================================
 // STEP INDICATOR
@@ -506,20 +473,37 @@ function Step3SdAs({
 }) {
   const ceMap = useMemo(() => buildContenidoCEMap(uf), [uf]);
 
-  // Auto-generate if empty
-  const ensureSdAs = useCallback((ua: UADefinition) => {
-    if (!sdaState[ua.id] || sdaState[ua.id].length === 0) {
-      const generated = autoGenerateSdAs(uf, ua, ceMap);
-      onUpdateSdAs(ua.id, generated);
-      return generated;
+  // Auto-generate SdAs for UAs that don't have any yet (runs once per UA)
+  const [initialized, setInitialized] = useState<Set<string>>(new Set());
+
+  // useEffect to avoid render-time state mutation
+  React.useEffect(() => {
+    const toInit: string[] = [];
+    uaDefs.forEach(ua => {
+      if (!initialized.has(ua.id) && (!sdaState[ua.id] || sdaState[ua.id].length === 0)) {
+        toInit.push(ua.id);
+      }
+    });
+    if (toInit.length > 0) {
+      toInit.forEach(uaId => {
+        const ua = uaDefs.find(u => u.id === uaId);
+        if (ua) {
+          const generated = autoGenerateSdAs(uf, ua, ceMap);
+          onUpdateSdAs(uaId, generated);
+        }
+      });
+      setInitialized(prev => {
+        const next = new Set(prev);
+        toInit.forEach(id => next.add(id));
+        return next;
+      });
     }
-    return sdaState[ua.id];
-  }, [uf, ceMap, sdaState, onUpdateSdAs]);
+  }, [uaDefs, sdaState, initialized, uf, ceMap, onUpdateSdAs]);
 
   return (
     <div className="space-y-6">
       {uaDefs.map((ua, uaIdx) => {
-        const sdas = ensureSdAs(ua);
+        const sdas = sdaState[ua.id] || [];
         const color = UA_COLORS[uaIdx % UA_COLORS.length];
         const totalHorasSdA = sdas.reduce((s, sda) => s + sda.tiempo, 0);
         const horasEval = Math.max(2, Math.round(ua.horas * 0.15));
@@ -716,7 +700,7 @@ const UA_COLORS = [
 // MAIN WIZARD COMPONENT
 // ============================================
 
-export function ProgramacionWizard({ uf, moduloCodigo, moduloNombre }: ProgramacionWizardProps) {
+export function ProgramacionWizard({ uf, moduloCodigo, moduloNombre, moduloHoras, certificadoCodigo, certificadoNombre, certificadoDuracion }: ProgramacionWizardProps) {
   const [step, setStep] = useState<WizardStep>(1);
   const [sdaState, setSdaState] = useState<Record<string, SdADraft[]>>({});
 
@@ -812,7 +796,41 @@ export function ProgramacionWizard({ uf, moduloCodigo, moduloNombre }: Programac
           />
         )}
         {step === 2 && <Step2Criterios uf={uf} uaDefs={uaDefs} />}
-        {step === 3 && <Step3SdAs uf={uf} uaDefs={uaDefs} sdaState={sdaState} onUpdateSdAs={handleUpdateSdAs} />}
+        {step === 3 && (
+          <>
+            <Step3SdAs uf={uf} uaDefs={uaDefs} sdaState={sdaState} onUpdateSdAs={handleUpdateSdAs} />
+
+            {/* Validation Summary Panel */}
+            <div className="mt-4 bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-2">
+              <h4 className="text-xs font-semibold text-slate-700">✓ Validación pre-export</h4>
+              {uaDefs.map((ua, i) => {
+                const sdas = sdaState[ua.id] || [];
+                const horasEval = Math.max(2, Math.round(ua.horas * 0.15));
+                const horasAuto = Math.max(1, Math.round(ua.horas * 0.1));
+                const horasTarget = ua.horas - horasEval - horasAuto;
+                const horasSdA = sdas.reduce((s, sda) => s + sda.tiempo, 0);
+                const horasOk = horasSdA === horasTarget;
+                const allCEsCovered = sdas.every(sda => sda.ceVinculados.length > 0);
+                const allNamed = sdas.every(sda => sda.nombre.trim().length > 3);
+                return (
+                  <div key={ua.id} className="flex items-center gap-3 text-xs">
+                    <span className="font-medium text-slate-700 w-8">{ua.id}</span>
+                    <span className={horasOk ? 'text-green-600' : 'text-amber-600'}>
+                      {horasOk ? '✓' : '⚠'} Horas: {horasSdA}/{horasTarget}h
+                    </span>
+                    <span className={allCEsCovered ? 'text-green-600' : 'text-amber-600'}>
+                      {allCEsCovered ? '✓' : '⚠'} CEs vinculados
+                    </span>
+                    <span className={allNamed ? 'text-green-600' : 'text-amber-600'}>
+                      {allNamed ? '✓' : '⚠'} Nombres
+                    </span>
+                    <span className="text-slate-400">{sdas.length} SdAs</span>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Navigation */}
@@ -879,8 +897,8 @@ export function ProgramacionWizard({ uf, moduloCodigo, moduloNombre }: Programac
                   };
                 });
                 const exportData: AnexoIVExportData = {
-                  certificado: { codigo: 'HOTA0308', nombre: 'Recepción en Alojamientos', duracion: 630 },
-                  modulo: { codigo: moduloCodigo, nombre: moduloNombre, horas: 120 },
+                  certificado: { codigo: certificadoCodigo, nombre: certificadoNombre, duracion: certificadoDuracion },
+                  modulo: { codigo: moduloCodigo, nombre: moduloNombre, horas: moduloHoras },
                   uf,
                   uas: exportUAs,
                 };

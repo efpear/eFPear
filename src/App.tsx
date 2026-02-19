@@ -433,6 +433,10 @@ export function App() {
                         uf={activeUF}
                         moduloCodigo={currentMod.codigo}
                         moduloNombre={currentMod.titulo}
+                        moduloHoras={currentMod.horas}
+                        certificadoCodigo={activeCert.codigo}
+                        certificadoNombre={activeCert.nombre}
+                        certificadoDuracion={activeCert.modulos.reduce((s: number, m: any) => s + m.horas, 0)}
                       />
                     );
                   })()}
