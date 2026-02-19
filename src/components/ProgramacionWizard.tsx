@@ -13,7 +13,7 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import type { BoeUFData } from '../types/boe';
-import { clasificarCE, TIPOLOGIA_COLORS, buildContenidoCEMap, collectCEsForTemas } from '../engine/ceUtils';
+import { clasificarCE, TIPOLOGIA_COLORS, buildContenidoCEMap } from '../engine/ceUtils';
 import { downloadAnexoIVDocx } from '../engine/anexoIVExport';
 import type { AnexoIVExportData, UAExport } from '../engine/anexoIVExport';
 
