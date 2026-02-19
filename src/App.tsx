@@ -19,7 +19,7 @@ import { EligibilityCheck } from './components/EligibilityCheck';
 import { obtenerDatosMF } from './data/boeRegistry';
 import { HOTA0308_DATA } from './data/boeDataHOTA0308';
 import type { BoeCertificadoData } from './types/boe';
-import type { Certificado } from './types';
+import type { Certificado, Capacidad } from './types';
 import { ProgramacionWizard } from './components/ProgramacionWizard';
 import { FLAGS } from './config/flags';
 
