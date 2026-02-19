@@ -13,6 +13,8 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import type { BoeUFData, BoeCapacidad, BoeContenido } from '../types/boe';
+import { downloadAnexoIVDocx } from '../engine/anexoIVExport';
+import type { AnexoIVExportData, UAExport } from '../engine/anexoIVExport';
 
 // ============================================
 // TYPES
@@ -840,8 +842,55 @@ export function ProgramacionWizard({ uf, moduloCodigo, moduloNombre }: Programac
             </button>
           ) : (
             <button
-              className="px-5 py-2 text-sm font-semibold rounded-lg bg-green-600 text-white hover:bg-green-700 shadow-sm">
-              Generar Anexo IV
+              onClick={() => {
+                // Build export data from wizard state
+                const exportUAs: UAExport[] = uaDefs.map(ua => {
+                  const sdas = sdaState[ua.id] || [];
+                  const horasEval = Math.max(2, Math.round(ua.horas * 0.15));
+                  const horasAuto = Math.max(1, Math.round(ua.horas * 0.1));
+                  // Collect CE IDs for this UA
+                  const ceMap = buildContenidoCEMap(uf);
+                  const ceIds = new Set<string>();
+                  ua.temaIndices.forEach(temaIdx => {
+                    const tema = uf.contenidos[temaIdx];
+                    tema?.items.forEach(item => {
+                      (ceMap.get(item.texto) || []).forEach(id => ceIds.add(id));
+                    });
+                  });
+                  return {
+                    id: ua.id,
+                    titulo: ua.temaIndices.map(i => uf.contenidos[i]?.titulo || '').join('; '),
+                    horas: ua.horas,
+                    horasEvaluacion: horasEval,
+                    horasAutonomo: horasAuto,
+                    horasSdA: ua.horas - horasEval - horasAuto,
+                    temaIndices: ua.temaIndices,
+                    capacidadIds: [...ceIds],
+                    sdas: sdas.map(s => ({
+                      numero: s.numero,
+                      nombre: s.nombre,
+                      objetivo: s.objetivo,
+                      ceVinculados: s.ceVinculados,
+                      metodologia: s.metodologia,
+                      desarrollo: s.desarrollo,
+                      recursos: s.recursos,
+                      tiempo: s.tiempo,
+                    })),
+                  };
+                });
+                const exportData: AnexoIVExportData = {
+                  certificado: { codigo: 'HOTA0308', nombre: 'Recepción en Alojamientos', duracion: 630 },
+                  modulo: { codigo: moduloCodigo, nombre: moduloNombre, horas: 120 },
+                  uf,
+                  uas: exportUAs,
+                };
+                downloadAnexoIVDocx(exportData).catch(err => {
+                  console.error('Export failed:', err);
+                  alert('Error al exportar: ' + (err?.message || 'Unknown error'));
+                });
+              }}
+              className="px-5 py-2 text-sm font-semibold rounded-lg bg-green-600 text-white hover:bg-green-700 shadow-sm flex items-center gap-2">
+              <span>📄</span> Generar Anexo IV (.docx)
             </button>
           )}
         </div>
