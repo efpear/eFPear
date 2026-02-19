@@ -128,3 +128,6 @@ export {
   GOLDEN_CASE_B_REQUIREMENTS,
 } from './eligibilityEngine';
 export type { EligibilityResult, TrainerProfile, BoeRequirements } from './eligibilityEngine';
+
+// BOE Data Registry
+export { obtenerDatosUF, obtenerDatosMF, obtenerDatosCertificado, tieneDatosBoe, codigosUFDisponibles, codigosMFDisponibles } from '../data/boeRegistry';

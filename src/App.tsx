@@ -24,6 +24,8 @@ import { NotionPlanning } from './components/NotionPlanning';
 import { NotionConfigBar } from './components/NotionConfigBar';
 import type { FichaSEPE } from './engine/sepeParser';
 import { EligibilityCheck } from './components/EligibilityCheck';
+import { obtenerDatosUF, tieneDatosBoe } from './data/boeRegistry';
+import type { BoeUFData } from './types/boe';
 import type { Certificado } from './types';
 
 // ============================================
@@ -179,24 +181,55 @@ export function App() {
     ) : null,
   [currentMod, activeCert.nivel]);
 
-  // Generate SdAs using the v1.2 advanced engine (works with or without BOE data)
-  const sdas = useMemo(() =>
-    distribucion
-      ? distribucion.uas.map((ua) =>
-          generarSdAsParaUA({
-            horasTotales: ua.horasTotales,
-            bloom: Math.min(5, ua.bloomLevel) as 1 | 2 | 3 | 4 | 5,
-            contenidos: currentMod
-              ? [currentMod.titulo || 'los contenidos del modulo']
-              : ['los contenidos del modulo'],
-            criterios: currentMod
-              ? currentMod.capacidades.flatMap(c => c.criterios.map(ce => ce.id))
-              : [],
-            uaNumero: ua.numero,
-          })
+  // BOE data lookup for real capacidades/criterios/contenidos
+  const boeData = useMemo(() => {
+    if (!currentMod) return null;
+    // Try to find BOE data for this MF's UFs
+    const mfData = obtenerDatosMF(currentMod.codigo);
+    if (mfData) return mfData;
+    return null;
+  }, [currentMod]);
+
+  // Generate SdAs using the v1.2 advanced engine
+  // When BOE data is available, uses REAL contenidos and criterios from the BOE annex
+  const sdas = useMemo(() => {
+    if (!distribucion) return [];
+
+    // If BOE data available, extract all contenidos and criterios from UFs
+    const boeContenidos: string[] = boeData
+      ? boeData.unidadesFormativas.flatMap(uf =>
+          uf.contenidos.flatMap(c => [
+            c.titulo,
+            ...c.items.map(item => item.texto),
+          ])
         )
-      : [],
-  [distribucion, currentMod]);
+      : [];
+    const boeCriterios: string[] = boeData
+      ? boeData.unidadesFormativas.flatMap(uf =>
+          uf.capacidades.flatMap(cap =>
+            cap.criterios.map(ce => ce.codigo)
+          )
+        )
+      : [];
+
+    return distribucion.uas.map((ua) =>
+      generarSdAsParaUA({
+        horasTotales: ua.horasTotales,
+        bloom: Math.min(5, ua.bloomLevel) as 1 | 2 | 3 | 4 | 5,
+        contenidos: boeContenidos.length > 0
+          ? boeContenidos
+          : currentMod
+            ? [currentMod.titulo || 'los contenidos del modulo']
+            : ['los contenidos del modulo'],
+        criterios: boeCriterios.length > 0
+          ? boeCriterios
+          : currentMod
+            ? currentMod.capacidades.flatMap(c => c.criterios.map(ce => ce.id))
+            : [],
+        uaNumero: ua.numero,
+      })
+    );
+  }, [distribucion, currentMod, boeData]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -340,11 +373,16 @@ export function App() {
 
             {/* Info: ficha sin capacidades BOE */}
             {dataSource === 'uploaded' && currentMod && currentMod.capacidades.length === 0 && (
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                <h3 className="text-sm font-semibold text-blue-800">Generando SdAs desde plantillas metodologicas</h3>
-                <p className="text-xs text-blue-700 mt-1">
-                  Las SdAs se generan con textos pedagogicos basados en el nivel Bloom y las horas del modulo.
-                  Para vincular criterios de evaluacion (CE) especificos, carga el Anexo del Real Decreto (BOE).
+              <div className={`border rounded-xl p-4 ${boeData ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'}`}>
+                <h3 className={`text-sm font-semibold ${boeData ? 'text-green-800' : 'text-blue-800'}`}>
+                  {boeData
+                    ? `Datos BOE disponibles: ${boeData.unidadesFormativas.length} UFs, ${boeData.unidadesFormativas.reduce((a, uf) => a + uf.capacidades.length, 0)} capacidades, ${boeData.unidadesFormativas.reduce((a, uf) => a + uf.capacidades.reduce((b, c) => b + c.criterios.length, 0), 0)} criterios`
+                    : 'Generando SdAs desde plantillas metodologicas'}
+                </h3>
+                <p className={`text-xs mt-1 ${boeData ? 'text-green-700' : 'text-blue-700'}`}>
+                  {boeData
+                    ? 'Las SdAs incluyen criterios de evaluacion y contenidos literales del BOE. Datos vinculados al Anexo del Real Decreto.'
+                    : 'Las SdAs se generan con textos pedagogicos basados en el nivel Bloom y las horas del modulo. Para vincular criterios de evaluacion (CE) especificos, carga el Anexo del Real Decreto (BOE).'}
                 </p>
               </div>
             )}
