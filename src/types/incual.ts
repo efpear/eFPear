@@ -77,11 +77,14 @@ export interface BloqueContenido_BOE {
  */
 export interface SituacionDeAprendizaje_SdA {
   numero: number;           // Sequential across all UAs in the UF
+  fase: 'Inicio' | 'Desarrollo' | 'Cierre';
   nombre: string;
   objetivo: string;
   ce_vinculados: string[];  // CE IDs addressed by this SdA
   metodologia: string;
-  desarrollo_actividad: string;
+  /** Must be one of: 'Individual', 'Parejas', 'Pequeño grupo', 'Grupos 3-4', 'Grupos 5-6', 'Gran grupo' (or combination) */
+  agrupamiento: string;
+  desarrollo_actividad: string;  // Must explicitly mention the agrupamiento
   recursos: string;
   tiempo_horas: number;
 }

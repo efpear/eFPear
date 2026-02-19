@@ -38,13 +38,33 @@ interface UADefinition {
   temaIndices: number[]; // indices into uf.contenidos
 }
 
+/** Agrupamiento options for SdA */
+const AGRUPAMIENTOS = [
+  'Individual',
+  'Parejas',
+  'Pequeño grupo',
+  'Grupos 3-4',
+  'Grupos 5-6',
+  'Gran grupo',
+  'Individual y parejas',
+  'Individual, grupos 3-4 y gran grupo',
+  'Grupos 3-4 y gran grupo',
+  'Grupos 5-6 y gran grupo',
+  'Parejas y gran grupo',
+];
+
+/** Fase options for SdA */
+type SdAFase = 'Inicio' | 'Desarrollo' | 'Cierre';
+
 /** SdA draft from Step 3 */
 interface SdADraft {
   numero: number;
+  fase: SdAFase;
   nombre: string;
   objetivo: string;
   ceVinculados: string[];
   metodologia: string;
+  agrupamiento: string;
   desarrollo: string;
   recursos: string;
   tiempo: number;
@@ -440,11 +460,13 @@ function autoGenerateSdAs(
 
     return {
       numero: sdaNum++,
+      fase: gIdx === 0 ? 'Inicio' as SdAFase : (gIdx === groups.length - 1 ? 'Cierre' as SdAFase : 'Desarrollo' as SdAFase),
       nombre: `${actionVerb.charAt(0).toUpperCase() + actionVerb.slice(1)} ${topicSnippet}`,
       objetivo: ceGroup.map(ce => ce.texto).join(' '),
       ceVinculados: ceIds,
       metodologia,
       desarrollo: `El alumnado ${primaryCE.texto.charAt(0).toLowerCase() + primaryCE.texto.slice(1)}`,
+      agrupamiento: 'Gran grupo',
       recursos: 'Pizarra, material de aula, presentación multimedia.',
       tiempo: Math.min(hoursPerSdA, 4),
     };
@@ -584,18 +606,50 @@ function Step3SdAs({
                       />
                     </div>
 
-                    {/* Metodología */}
+                    {/* Fase + Metodología */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Fase</label>
+                        <select
+                          value={sda.fase || 'Desarrollo'}
+                          onChange={e => {
+                            const updated = [...sdas];
+                            updated[sdaIdx] = { ...sda, fase: e.target.value as SdAFase };
+                            onUpdateSdAs(ua.id, updated);
+                          }}
+                          className="w-full text-xs border border-slate-100 rounded-md px-2 py-1.5 bg-white hover:border-slate-200 focus:border-green-500 focus:ring-1 focus:ring-green-200">
+                          <option value="Inicio">Inicio</option>
+                          <option value="Desarrollo">Desarrollo</option>
+                          <option value="Cierre">Cierre</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Metodología</label>
+                        <select
+                          value={sda.metodologia}
+                          onChange={e => {
+                            const updated = [...sdas];
+                            updated[sdaIdx] = { ...sda, metodologia: e.target.value };
+                            onUpdateSdAs(ua.id, updated);
+                          }}
+                          className="w-full text-xs border border-slate-100 rounded-md px-2 py-1.5 bg-white hover:border-slate-200 focus:border-green-500 focus:ring-1 focus:ring-green-200">
+                          {METODOLOGIAS.map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Agrupamiento */}
                     <div>
-                      <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Metodología</label>
+                      <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Agrupamiento</label>
                       <select
-                        value={sda.metodologia}
+                        value={sda.agrupamiento || 'Gran grupo'}
                         onChange={e => {
                           const updated = [...sdas];
-                          updated[sdaIdx] = { ...sda, metodologia: e.target.value };
+                          updated[sdaIdx] = { ...sda, agrupamiento: e.target.value };
                           onUpdateSdAs(ua.id, updated);
                         }}
                         className="w-full text-xs border border-slate-100 rounded-md px-2 py-1.5 bg-white hover:border-slate-200 focus:border-green-500 focus:ring-1 focus:ring-green-200">
-                        {METODOLOGIAS.map(m => <option key={m} value={m}>{m}</option>)}
+                        {AGRUPAMIENTOS.map(a => <option key={a} value={a}>{a}</option>)}
                       </select>
                     </div>
 
@@ -653,10 +707,12 @@ function Step3SdAs({
                 onClick={() => {
                   const newSda: SdADraft = {
                     numero: sdas.length + 1,
+                    fase: 'Desarrollo',
                     nombre: 'Nueva situación de aprendizaje',
                     objetivo: '',
                     ceVinculados: [],
                     metodologia: METODOLOGIAS[0],
+                    agrupamiento: 'Gran grupo',
                     desarrollo: '',
                     recursos: 'Pizarra, material de aula.',
                     tiempo: 2,
@@ -890,10 +946,12 @@ export function ProgramacionWizard({ uf, moduloCodigo, moduloNombre, moduloHoras
                     capacidadIds: [...ceIds],
                     sdas: sdas.map(s => ({
                       numero: s.numero,
+                      fase: s.fase,
                       nombre: s.nombre,
                       objetivo: s.objetivo,
                       ceVinculados: s.ceVinculados,
                       metodologia: s.metodologia,
+                      agrupamiento: s.agrupamiento,
                       desarrollo: s.desarrollo,
                       recursos: s.recursos,
                       tiempo: s.tiempo,

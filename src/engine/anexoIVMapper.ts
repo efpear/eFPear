@@ -172,12 +172,15 @@ export function validarUA(ua: UnidadAprendizaje_UA): AnexoIVValidation {
   const formato_ok = true; // Validated at render time
 
   // Test 4: Estructura SdA — required fields present
+  // SdA must have agrupamiento and it must be mentioned in desarrollo_actividad
+  const agrupamientoRegex = /(individual(mente)?|parejas|pequeños? grupos?|grupos? (de )?\d+-?\d*|gran grupo)/i;
   const estructura_sda_ok = ua.situaciones_aprendizaje.every(sda =>
     sda.nombre && sda.objetivo && sda.ce_vinculados.length > 0 &&
-    sda.metodologia && sda.desarrollo_actividad && sda.recursos && sda.tiempo_horas > 0
+    sda.metodologia && sda.desarrollo_actividad && sda.recursos && sda.tiempo_horas > 0 &&
+    ('agrupamiento' in sda) && agrupamientoRegex.test(sda.desarrollo_actividad)
   );
   if (!estructura_sda_ok) {
-    errors.push('Alguna SdA tiene campos incompletos');
+    errors.push('Alguna SdA tiene campos incompletos (nombre, objetivo, CEs, metodología, agrupamiento, desarrollo o recursos)');
   }
 
   // Hours check

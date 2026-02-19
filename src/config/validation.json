@@ -1,0 +1,56 @@
+[
+  {
+    "id": "BOE_HOURS_MISMATCH",
+    "scope": "UF",
+    "severity": "error",
+    "description": "La suma de horas de las Unidades Formativas debe coincidir con el total del Módulo Formativo."
+  },
+  {
+    "id": "MISSING_CAPACITY_IN_UF",
+    "scope": "UF",
+    "severity": "error",
+    "description": "Todas las capacidades (C1...Cn) del BOE deben estar asignadas al menos a una UA."
+  },
+  {
+    "id": "SUM_SDA_HOURS_INCORRECT",
+    "scope": "UA",
+    "severity": "error",
+    "description": "El sumatorio de horas de las SdA debe ser exactamente: Horas UA - Evaluación - Autónomo."
+  },
+  {
+    "id": "ORPHAN_CE_IN_COL1",
+    "scope": "UA",
+    "severity": "error",
+    "description": "Hay Criterios de Evaluación en la Columna 1 que no aparecen vinculados a ninguna línea de contenido en la Columna 2."
+  },
+  {
+    "id": "FINAL_UA_PO_PPF_MIN",
+    "scope": "UA",
+    "severity": "error",
+    "description": "La última UA del Módulo debe reservar al menos 5 horas para la Prueba Teórica (PO) y Práctica Final (PPF)."
+  },
+  {
+    "id": "AUTONOMO_MARGIN_LOW",
+    "scope": "UA",
+    "severity": "warning",
+    "description": "El tiempo para aprendizaje autónomo / margen de aula es inferior al 5% de la UA."
+  },
+  {
+    "id": "MISSING_FASE_START_END",
+    "scope": "UA",
+    "severity": "warning",
+    "description": "En UAs con 3 o más actividades, se recomienda incluir al menos una SdA de 'Inicio' y una de 'Cierre'."
+  },
+  {
+    "id": "EMPTY_CAPACITY_IN_UA",
+    "scope": "UA",
+    "severity": "warning",
+    "description": "Se ha listado una Capacidad en esta UA pero no tiene ningún Criterio de Evaluación asociado."
+  },
+  {
+    "id": "SDA_STYLE_POOR",
+    "scope": "SdA",
+    "severity": "warning",
+    "description": "La redacción de la SdA es escasa o no cumple los estándares (objetivo en infinitivo o falta de agrupamiento)."
+  }
+]
