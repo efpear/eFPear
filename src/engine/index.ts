@@ -82,12 +82,11 @@ export {
 
 // SdA Engine
 export {
-  generarSdAsCompletas,
-  validarCoberturaCriterios,
+  generarSdAsParaUA,
+  validarCoberturaCE,
   estadisticasSdAs,
-  DEFAULT_SDA_CONFIG,
 } from './sdaEngine';
-export type { SdAGenerationConfig } from './sdaEngine';
+export type { SdAGeneratorConfig } from './sdaEngine';
 
 // SdA Edit Engine
 export {
