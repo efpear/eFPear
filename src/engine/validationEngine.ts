@@ -1,4 +1,4 @@
-// src/engine/validationEngine.ts — Validation Engine for Anexo IV
+// src/engine/validationEngine.ts - Validation Engine for Anexo IV
 //
 // Runs all quality checks defined in config/validation.json.
 // Designed to be extensible: add a rule to the JSON + implement its check here.
@@ -56,7 +56,7 @@ function checkUFLevelRules(uf: any, boeRef: any): ValidationIssue[] {
     const ufHoras = uf.ufHoras || uf.horas || 0;
     const sumUFHoras = (uf.uas || []).reduce((acc: number, ua: any) => acc + (ua.uaHorasTotales || ua.horas || 0), 0);
     if (sumUFHoras > 0 && boeRef.horasTotalesMF > 0) {
-      // Check if UF hours are part of the MF — simplified: just validate internal consistency
+      // Check if UF hours are part of the MF - simplified: just validate internal consistency
       if (ufHoras > boeRef.horasTotalesMF) {
         results.push({
           ruleId: "BOE_HOURS_MISMATCH",
@@ -100,7 +100,7 @@ function checkUFLevelRules(uf: any, boeRef: any): ValidationIssue[] {
 
 function checkUALevelRules(ua: any, uf: any, uaIdx: number, totalUAs: number): ValidationIssue[] {
   const results: ValidationIssue[] = [];
-  const uaId = ua.id || ua.uaNumero ? \`UA-\${ua.uaNumero || uaIdx + 1}\` : \`UA-\${uaIdx + 1}\`;
+  const uaId = ua.id || ua.uaNumero ? `UA-${ua.uaNumero || uaIdx + 1}` : `UA-${uaIdx + 1}`;
   const sdas = ua.sdas || ua.situacionesAprendizaje || [];
 
   // SUM_SDA_HOURS_INCORRECT
@@ -116,7 +116,7 @@ function checkUALevelRules(ua: any, uf: any, uaIdx: number, totalUAs: number): V
       level: "error",
       scope: "UA",
       id: uaId,
-      message: \`Las horas no cuadran: hay \${totalSdaHours}h en SdA, pero se esperan \${expectedSdaHours}h.\`
+      message: `Las horas no cuadran: hay ${totalSdaHours}h en SdA, pero se esperan ${expectedSdaHours}h.`
     });
   }
 
@@ -148,7 +148,7 @@ function checkUALevelRules(ua: any, uf: any, uaIdx: number, totalUAs: number): V
           level: "error",
           scope: "UA",
           id: uaId,
-          message: \`El criterio \${ceId} aparece en Columna 1 pero no está vinculado a ningún contenido en Columna 2.\`
+          message: `El criterio ${ceId} aparece en Columna 1 pero no está vinculado a ningún contenido en Columna 2.`
         });
       }
     });
@@ -160,12 +160,12 @@ function checkUALevelRules(ua: any, uf: any, uaIdx: number, totalUAs: number): V
         level: "warning",
         scope: "UA",
         id: uaId,
-        message: \`La capacidad \${cap.codigo || cap.id} no tiene criterios asignados en esta UA.\`
+        message: `La capacidad ${cap.codigo || cap.id} no tiene criterios asignados en esta UA.`
       });
     }
   });
 
-  // FINAL_UA_PO_PPF_MIN: last UA must reserve ≥5h for PO+PPF
+  // FINAL_UA_PO_PPF_MIN: last UA must reserve >=5h for PO+PPF
   if (uaIdx === totalUAs - 1) {
     if (horasEval < 5) {
       results.push({
@@ -173,7 +173,7 @@ function checkUALevelRules(ua: any, uf: any, uaIdx: number, totalUAs: number): V
         level: "error",
         scope: "UA",
         id: uaId,
-        message: \`La última UA debe reservar al menos 5h para PO+PPF, pero solo tiene \${horasEval}h de evaluación.\`
+        message: `La última UA debe reservar al menos 5h para PO+PPF, pero solo tiene ${horasEval}h de evaluación.`
       });
     }
   }
@@ -185,11 +185,11 @@ function checkUALevelRules(ua: any, uf: any, uaIdx: number, totalUAs: number): V
       level: "warning",
       scope: "UA",
       id: uaId,
-      message: \`El margen de aprendizaje autónomo (\${horasAuto}h) es inferior al 5% recomendado (\${(horasTotal * 0.05).toFixed(1)}h).\`
+      message: `El margen de aprendizaje autónomo (${horasAuto}h) es inferior al 5% recomendado (${(horasTotal * 0.05).toFixed(1)}h).`
     });
   }
 
-  // MISSING_FASE_START_END: if ≥3 SdAs, recommend Inicio + Cierre
+  // MISSING_FASE_START_END: if >=3 SdAs, recommend Inicio + Cierre
   if (sdas.length >= 3) {
     const fases = sdas.map((s: any) => (s.fase || "").toLowerCase());
     const hasInicio = fases.some((f: string) => f === "inicio");
@@ -203,7 +203,7 @@ function checkUALevelRules(ua: any, uf: any, uaIdx: number, totalUAs: number): V
         level: "warning",
         scope: "UA",
         id: uaId,
-        message: \`Se recomienda incluir al menos una SdA de fase: \${missing.join(" y ")}.\`
+        message: `Se recomienda incluir al menos una SdA de fase: ${missing.join(" y ")}.`
       });
     }
   }
@@ -221,7 +221,7 @@ const AGRUPAMIENTO_REGEX = /(individual(mente)?|parejas|pequeños? grupos?|grupo
 
 function checkSdaLevelRules(sda: any): ValidationIssue[] {
   const results: ValidationIssue[] = [];
-  const sdaId = \`SdA-\${sda.numero}\`;
+  const sdaId = `SdA-${sda.numero}`;
   const objetivo = sda.objetivo || "";
   const desarrollo = sda.desarrollo || sda.desarrollo_actividad || "";
 
@@ -232,7 +232,7 @@ function checkSdaLevelRules(sda: any): ValidationIssue[] {
       level: "warning",
       scope: "SdA",
       id: sdaId,
-      message: \`El objetivo de la SdA \${sda.numero} debe empezar por un verbo en infinitivo.\`
+      message: `El objetivo de la SdA ${sda.numero} debe empezar por un verbo en infinitivo.`
     });
   }
 
@@ -243,7 +243,7 @@ function checkSdaLevelRules(sda: any): ValidationIssue[] {
       level: "warning",
       scope: "SdA",
       id: sdaId,
-      message: \`El desarrollo de la SdA \${sda.numero} no menciona explícitamente el agrupamiento del alumnado.\`
+      message: `El desarrollo de la SdA ${sda.numero} no menciona explícitamente el agrupamiento del alumnado.`
     });
   }
 
