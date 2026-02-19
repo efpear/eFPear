@@ -22,6 +22,8 @@ import type { BoeCertificadoData } from './types/boe';
 import type { Certificado, Capacidad } from './types';
 import { ProgramacionWizard } from './components/ProgramacionWizard';
 import { FLAGS } from './config/flags';
+import { PlanningDashboard } from './components/PlanningDashboard';
+import { BoeGate } from './components/BoeGate';
 
 // ============================================
 // DEMO DATA — HOTR0208 Operaciones Básicas de Cocina
@@ -284,7 +286,12 @@ export function App() {
             />
         ) : tab === 'calendario' ? (
           <div className="space-y-4">
-            {/* PDF Upload — collapsible */}
+            {/* Block A: Planning Dashboard — PDF upload for imparticion dates */}
+            {FLAGS.ENABLE_PLANNING_DASHBOARD && (
+              <PlanningDashboard fechaInicio={fechaInicio} />
+            )}
+
+            {/* PDF Upload for calendar engine — collapsible */}
             {/* Catalog Browser OR single ficha upload */}
             <details className="group" open={dataSource !== 'uploaded'}>
               <summary className="flex items-center gap-2 cursor-pointer text-sm text-slate-500 hover:text-slate-700 py-2">
@@ -365,6 +372,10 @@ export function App() {
           </div>
         ) : (
           <div className="space-y-6">
+            {/* Block B: BOE Gate — hard gate for Programacion Didactica */}
+            {FLAGS.ENABLE_BOE_GATE ? (
+              <BoeGate>
+                <div className="space-y-6">
             {/* Module Selector */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
               <h2 className="text-base font-semibold text-slate-900 mb-4">Seleccionar módulo formativo</h2>
@@ -448,6 +459,13 @@ export function App() {
                 <p className="text-[10px] text-slate-400">
                   Caso golden: HOTA0308 Recepción en Alojamientos · MF0265_3 · UF0048 + UF0049
                 </p>
+              </div>
+            )}
+                </div>
+              </BoeGate>
+            ) : (
+              <div className="bg-slate-50 border border-slate-200 rounded-lg px-6 py-8 text-center">
+                <p className="text-sm text-slate-600">Programacion Didactica desactivada</p>
               </div>
             )}
           </div>
