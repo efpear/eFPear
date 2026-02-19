@@ -256,15 +256,15 @@ describe('buildContenidoCEMap', () => {
         codigo: 'C1',
         texto: 'Capacidad 1',
         criterios: [
-          { codigo: 'CE1.1', texto: 'Describir algo', tipologia: 'conocimiento' },
-          { codigo: 'CE1.2', texto: 'Calcular costes', tipologia: 'destreza' },
+          { codigo: 'CE1.1', texto: 'Describir algo' },
+          { codigo: 'CE1.2', texto: 'Calcular costes' },
         ],
       },
       {
         codigo: 'C2',
         texto: 'Capacidad 2',
         criterios: [
-          { codigo: 'CE2.1', texto: 'Justificar importancia', tipologia: 'habilidad' },
+          { codigo: 'CE2.1', texto: 'Justificar importancia' },
         ],
       },
     ],
