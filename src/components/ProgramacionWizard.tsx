@@ -12,9 +12,8 @@
  */
 
 import React, { useState, useMemo, useCallback } from 'react';
-import type { BoeUFData, BoeCapacidad, BoeContenido } from '../types/boe';
+import type { BoeUFData } from '../types/boe';
 import { clasificarCE, TIPOLOGIA_COLORS, buildContenidoCEMap, collectCEsForTemas } from '../engine/ceUtils';
-import type { TipologiaCE } from '../engine/ceUtils';
 import { downloadAnexoIVDocx } from '../engine/anexoIVExport';
 import type { AnexoIVExportData, UAExport } from '../engine/anexoIVExport';
 
@@ -64,14 +63,6 @@ interface ProgramacionWizardProps {
 // ============================================
 // CE CLASSIFICATION (deterministic, verb-based)
 // ============================================
-
-
-
-
-
-
-
-
 
 // ============================================
 // CONTENT-TO-CE MAPPING (from golden sample)
