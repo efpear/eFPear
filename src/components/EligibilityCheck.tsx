@@ -298,7 +298,7 @@ export function EligibilityCheck({ onPlanificar }: EligibilityCheckProps) {
               >
                 <div className="flex items-start gap-2">
                   <span className="text-sm flex-shrink-0">
-                    {msg.tipo === 'success' ? {'✅'} : msg.tipo === 'warning' ? {'⚠️'} : {'❌'}}
+                    {msg.tipo === 'success' ? '✅' : msg.tipo === 'warning' ? '⚠️' : '❌'}
                   </span>
                   <div>
                     <div className="text-sm text-slate-800">{msg.texto}</div>
