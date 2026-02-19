@@ -15,6 +15,8 @@ import React, { useState, useMemo, useCallback } from 'react';
 import type { BoeUFData } from '../types/boe';
 import { clasificarCE, TIPOLOGIA_COLORS, buildContenidoCEMap } from '../engine/ceUtils';
 import { downloadAnexoIVDocx } from '../engine/anexoIVExport';
+import { runValidations } from '../engine/validationEngine';
+import { HealthPanel } from './HealthPanel';
 import type { AnexoIVExportData, UAExport } from '../engine/anexoIVExport';
 
 // ============================================
@@ -811,6 +813,48 @@ export function ProgramacionWizard({ uf, moduloCodigo, moduloNombre, moduloHoras
     return true;
   }, [step, uaDefs, uf.contenidos.length]);
 
+  // ============================================
+  // VALIDATION (Panel de Salud)
+  // ============================================
+
+  const validationIssues = useMemo(() => {
+    if (step !== 3 || uaDefs.length === 0) return [];
+    // Build a UF-like object the engine can consume
+    const ceMap = buildContenidoCEMap(uf);
+    const ufForValidation = {
+      uas: uaDefs.map(ua => {
+        const sdas = sdaState[ua.id] || [];
+        const horasEval = Math.max(2, Math.round(ua.horas * 0.15));
+        const horasAuto = Math.max(1, Math.round(ua.horas * 0.1));
+        const contenidoBlocks = ua.temaIndices.map(temaIdx => {
+          const tema = uf.contenidos[temaIdx];
+          return {
+            lineas: (tema?.items || []).map(item => ({
+              ces: ceMap.get(item.texto) || [],
+            })),
+          };
+        });
+        const ceIds = new Set<string>();
+        contenidoBlocks.forEach(b => b.lineas.forEach(l => l.ces.forEach((id: string) => ceIds.add(id))));
+        return {
+          uaNumero: parseInt(ua.id.replace('UA', ''), 10) || 1,
+          uaHorasTotales: ua.horas,
+          uaEvaluacionProcesoHoras: horasEval,
+          uaAutonomoHoras: horasAuto,
+          sdas,
+          contenidoBlocks,
+          capacidades: [{
+            codigo: 'C-auto',
+            conocimientos: [...ceIds].map(id => ({ codigo: id })),
+            destrezas: [],
+            habilidades: [],
+          }],
+        };
+      }),
+    };
+    return runValidations(ufForValidation);
+  }, [step, uaDefs, sdaState, uf]);
+
   return (
     <div className="space-y-6">
       {/* UF Header */}
@@ -892,6 +936,10 @@ export function ProgramacionWizard({ uf, moduloCodigo, moduloNombre, moduloHoras
           </>
         )}
       </div>
+
+
+      {/* Health Panel — visible only on Step 3 */}
+      {step === 3 && <HealthPanel issues={validationIssues} />}
 
       {/* Navigation */}
       <div className="flex items-center justify-between">
