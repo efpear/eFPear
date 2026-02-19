@@ -17,6 +17,8 @@ import { NotionConfigBar } from './components/NotionConfigBar';
 import type { FichaSEPE } from './engine/sepeParser';
 import { EligibilityCheck } from './components/EligibilityCheck';
 import { obtenerDatosMF } from './data/boeRegistry';
+import { HOTA0308_DATA } from './data/boeDataHOTA0308';
+import type { BoeCertificadoData } from './types/boe';
 import type { Certificado } from './types';
 import { ProgramacionWizard } from './components/ProgramacionWizard';
 import { FLAGS } from './config/flags';
@@ -25,6 +27,38 @@ import { codigosUFDisponibles } from './data/boeRegistry';
 // ============================================
 // DEMO DATA — HOTR0208 Operaciones Básicas de Cocina
 // ============================================
+/** Convert BOE certificado data to the app's Certificado type for golden case testing */
+function boeToAppCert(boe: BoeCertificadoData): Certificado {
+  return {
+    codigo: boe.codigo,
+    nombre: boe.denominacion,
+    nivel: boe.nivel as 1 | 2 | 3,
+    modulos: boe.modulos.map(mf => ({
+      codigo: mf.codigoMF,
+      titulo: mf.nombreMF,
+      horas: mf.duracion,
+      capacidades: mf.unidadesFormativas.flatMap(uf =>
+        uf.capacidades.map(cap => ({
+          id: cap.codigo,
+          descripcion: cap.texto,
+          criterios: cap.criterios.map(ce => ({
+            id: ce.codigo,
+            descripcion: ce.texto,
+          })),
+        }))
+      ),
+      contenidos: mf.unidadesFormativas.flatMap(uf =>
+        uf.contenidos.map(cont => ({
+          id: cont.numero,
+          descripcion: cont.titulo,
+        }))
+      ),
+    })),
+  };
+}
+
+const GOLDEN_CERT = boeToAppCert(HOTA0308_DATA);
+
 const DEMO_CERT: any = {
   codigo: 'HOTR0208',
   nombre: 'Operaciones Básicas de Cocina',
@@ -144,6 +178,13 @@ export function App() {
     setFichaInfo(ficha);
     setDataSource('uploaded');
     setSelectedMod(0);
+  }, []);
+
+  const loadGoldenCase = useCallback(() => {
+    setActiveCert(GOLDEN_CERT);
+    setFichaInfo(null);
+    setDataSource('uploaded');
+    setSelectedMod(GOLDEN_CERT.modulos.findIndex(m => m.codigo === 'MF0265_3'));
   }, []);
 
   const resetToDemo = useCallback(() => {
@@ -388,15 +429,25 @@ export function App() {
                 </div>
               );
             })() : (
-              /* Fallback: old distribution engine when no BOE data */
-              <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
-                <h3 className="text-sm font-semibold text-blue-800">
-                  Datos BOE necesarios
+              /* No BOE data for current module — show CTA to load golden case */
+              <div className="bg-slate-50 border border-slate-200 rounded-lg px-6 py-8 text-center space-y-4">
+                <div className="text-3xl">📋</div>
+                <h3 className="text-sm font-semibold text-slate-800">
+                  Wizard de Programación Didáctica
                 </h3>
-                <p className="text-xs text-blue-700 mt-1">
-                  El Wizard de Programación Didáctica (Regla Minerva) requiere datos BOE estructurados.
-                  Actualmente disponibles: {codigosUFDisponibles().join(', ') || 'ninguno'}.
-                  Carga un certificado con datos BOE para activar el wizard.
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  El módulo actual ({currentMod?.codigo}) no tiene datos BOE cargados.
+                  Puedes subir una ficha SEPE con datos BOE o probar con el caso golden.
+                </p>
+                <div className="flex items-center justify-center gap-3">
+                  <button
+                    onClick={loadGoldenCase}
+                    className="px-4 py-2 text-sm font-semibold rounded-lg bg-green-600 text-white hover:bg-green-700 shadow-sm transition-colors">
+                    Probar con HOTA0308 (Golden Case)
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-400">
+                  Caso golden: HOTA0308 Recepción en Alojamientos · MF0265_3 · UF0048 + UF0049
                 </p>
               </div>
             )}
