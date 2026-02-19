@@ -1,141 +1,136 @@
-# 🚀 Welcome to Z.ai Code Scaffold
+# 🍐 eFPear CertiCalc
 
-A modern, production-ready web application scaffold powered by cutting-edge technologies, designed to accelerate your development with [Z.ai](https://chat.z.ai)'s AI-powered coding assistance.
+**Planificación de módulos formativos FP con Anexo IV automático.**
 
-## ✨ Technology Stack
+eFPear CertiCalc es una PWA para docentes de Formación Profesional para el Empleo (FPE) que automatiza la generación de la Programación Didáctica (Anexo IV) a partir de los datos oficiales del BOE.
 
-This scaffold provides a robust foundation built with:
+## ✨ Funcionalidades
 
-### 🎯 Core Framework
-- **⚡ Next.js 16** - The React framework for production with App Router
-- **📘 TypeScript 5** - Type-safe JavaScript for better developer experience
-- **🎨 Tailwind CSS 4** - Utility-first CSS framework for rapid UI development
+### 🚦 Semáforo de Elegibilidad (Slice 1)
+Evalúa si el perfil del docente cumple los requisitos BOE para impartir un módulo formativo. Muestra resultado visual tipo semáforo (apto/no apto/parcial) con detalle por requisito.
 
-### 🧩 UI Components & Styling
-- **🧩 shadcn/ui** - High-quality, accessible components built on Radix UI
-- **🎯 Lucide React** - Beautiful & consistent icon library
-- **🌈 Framer Motion** - Production-ready motion library for React
-- **🎨 Next Themes** - Perfect dark mode in 2 lines of code
+### 📅 Puente Calendario (Slice 2)
+Desde el resultado de elegibilidad, accede directamente al planificador de calendario con el contexto del módulo formativo seleccionado.
 
-### 📋 Forms & Validation
-- **🎣 React Hook Form** - Performant forms with easy validation
-- **✅ Zod** - TypeScript-first schema validation
+### 📋 Wizard Programación Didáctica (Slice 3)
+Wizard de 3 pasos estilo Notion para construir el Anexo IV:
 
-### 🔄 State Management & Data Fetching
-- **🐻 Zustand** - Simple, scalable state management
-- **🔄 TanStack Query** - Powerful data synchronization for React
-- **🌐 Fetch** - Promise-based HTTP request
+1. **Contenidos (Col 2)** — Asigna bloques temáticos BOE a Unidades de Aprendizaje (UAs)
+2. **Criterios (Col 1)** — Capacidades y CEs derivados automáticamente (solo lectura, con badges de tipología)
+3. **Situaciones de Aprendizaje (Col 3)** — Generación automática de SdAs desde el cruce CE × contenido
 
-### 🗄️ Database & Backend
-- **🗄️ Prisma** - Next-generation TypeScript ORM
-- **🔐 NextAuth.js** - Complete open-source authentication solution
+**Regla Minerva**: Contenidos → Criterios → SdAs. La selección de contenidos dirige todo el proceso.
 
-### 🎨 Advanced UI Features
-- **📊 TanStack Table** - Headless UI for building tables and datagrids
-- **🖱️ DND Kit** - Modern drag and drop toolkit for React
-- **📊 Recharts** - Redefined chart library built with React and D3
-- **🖼️ Sharp** - High performance image processing
+### 📄 Export DOCX (Slice 4)
+Genera el documento Anexo IV completo como `.docx` directamente en el navegador:
+- Encabezado con datos del certificado, módulo y UF
+- Sección de objetivos (capacidades)
+- Por cada UA: Columna 1 (capacidades/CEs), Columna 2 (contenidos), Columna 3 (tabla de SdAs)
 
-### 🌍 Internationalization & Utilities
-- **🌍 Next Intl** - Internationalization library for Next.js
-- **📅 Date-fns** - Modern JavaScript date utility library
-- **🪝 ReactUse** - Collection of essential React hooks for modern development
-
-## 🎯 Why This Scaffold?
-
-- **🏎️ Fast Development** - Pre-configured tooling and best practices
-- **🎨 Beautiful UI** - Complete shadcn/ui component library with advanced interactions
-- **🔒 Type Safety** - Full TypeScript configuration with Zod validation
-- **📱 Responsive** - Mobile-first design principles with smooth animations
-- **🗄️ Database Ready** - Prisma ORM configured for rapid backend development
-- **🔐 Auth Included** - NextAuth.js for secure authentication flows
-- **📊 Data Visualization** - Charts, tables, and drag-and-drop functionality
-- **🌍 i18n Ready** - Multi-language support with Next Intl
-- **🚀 Production Ready** - Optimized build and deployment settings
-- **🤖 AI-Friendly** - Structured codebase perfect for AI assistance
-
-## 🚀 Quick Start
-
-```bash
-# Install dependencies
-bun install
-
-# Start development server
-bun run dev
-
-# Build for production
-bun run build
-
-# Start production server
-bun start
-```
-
-Open [http://localhost:3000](http://localhost:3000) to see your application running.
-
-## 🤖 Powered by Z.ai
-
-This scaffold is optimized for use with [Z.ai](https://chat.z.ai) - your AI assistant for:
-
-- **💻 Code Generation** - Generate components, pages, and features instantly
-- **🎨 UI Development** - Create beautiful interfaces with AI assistance  
-- **🔧 Bug Fixing** - Identify and resolve issues with intelligent suggestions
-- **📝 Documentation** - Auto-generate comprehensive documentation
-- **🚀 Optimization** - Performance improvements and best practices
-
-Ready to build something amazing? Start chatting with Z.ai at [chat.z.ai](https://chat.z.ai) and experience the future of AI-powered development!
-
-## 📁 Project Structure
+## 🏗️ Arquitectura
 
 ```
 src/
-├── app/                 # Next.js App Router pages
-├── components/          # Reusable React components
-│   └── ui/             # shadcn/ui components
-├── hooks/              # Custom React hooks
-└── lib/                # Utility functions and configurations
+├── components/
+│   ├── ProgramacionWizard.tsx   # Wizard 3 pasos Anexo IV
+│   ├── EligibilityCheck.tsx     # Semáforo elegibilidad
+│   ├── CatalogBrowser.tsx       # Buscador catálogo SEPE
+│   └── NotionPlanning.tsx       # Planificador calendario
+├── engine/
+│   ├── ceUtils.ts               # clasificarCE() — clasificador determinista
+│   ├── sanitizeLiteralText.ts   # Limpieza texto BOE
+│   ├── anexoIVMapper.ts         # Regla Minerva + validación
+│   ├── anexoIVExport.ts         # Generador DOCX (docx library)
+│   ├── calendarEngine.ts        # Motor calendario
+│   └── sepeParser.ts            # Parser fichas SEPE
+├── data/
+│   ├── boeDataHOTA0308.ts       # Golden case HOTA0308 (literal BOE)
+│   └── boeRegistry.ts           # Registro certificados
+├── types/
+│   ├── boe.ts                   # Tipos datos BOE
+│   ├── incual.ts                # Tipos INCUAL canónicos
+│   └── index.ts                 # Tipos generales app
+└── config/
+    └── flags.ts                 # Feature flags
 ```
 
-## 🎨 Available Features & Components
+### Principios
 
-This scaffold includes a comprehensive set of modern web development tools:
+- **Texto literal BOE** — Sin parafraseo ni generación IA. Copy-paste exacto.
+- **INCUAL Glosario 2023** — Ontología maestra para nombres de campo.
+- **Clasificación CE determinista** — Basada en verbos INCUAL, verificable por inspección.
+- **Client-side 100%** — Sin backend. GDPR by design. PWA offline.
+- **Sanitización defensa en profundidad** — `sanitizeLiteralText()` en entrada Y en export.
 
-### 🧩 UI Components (shadcn/ui)
-- **Layout**: Card, Separator, Aspect Ratio, Resizable Panels
-- **Forms**: Input, Textarea, Select, Checkbox, Radio Group, Switch
-- **Feedback**: Alert, Toast (Sonner), Progress, Skeleton
-- **Navigation**: Breadcrumb, Menubar, Navigation Menu, Pagination
-- **Overlay**: Dialog, Sheet, Popover, Tooltip, Hover Card
-- **Data Display**: Badge, Avatar, Calendar
+## 🚀 Stack Técnico
 
-### 📊 Advanced Data Features
-- **Tables**: Powerful data tables with sorting, filtering, pagination (TanStack Table)
-- **Charts**: Beautiful visualizations with Recharts
-- **Forms**: Type-safe forms with React Hook Form + Zod validation
+| Capa | Tecnología |
+|------|-----------|
+| Framework | React 19 + TypeScript 5 |
+| Build | Vite 6 |
+| Estilos | Tailwind CSS 3 |
+| UI | Radix UI + Lucide icons |
+| Persistencia | IndexedDB (Dexie) |
+| Export DOCX | docx@9 |
+| PWA | vite-plugin-pwa |
+| Tests | Vitest + Testing Library |
+| Deploy | Vercel |
 
-### 🎨 Interactive Features
-- **Animations**: Smooth micro-interactions with Framer Motion
-- **Drag & Drop**: Modern drag-and-drop functionality with DND Kit
-- **Theme Switching**: Built-in dark/light mode support
+## 🧪 Tests
 
-### 🔐 Backend Integration
-- **Authentication**: Ready-to-use auth flows with NextAuth.js
-- **Database**: Type-safe database operations with Prisma
-- **API Client**: HTTP requests with Fetch + TanStack Query
-- **State Management**: Simple and scalable with Zustand
+```bash
+# Ejecutar todos los tests
+npm test
 
-### 🌍 Production Features
-- **Internationalization**: Multi-language support with Next Intl
-- **Image Optimization**: Automatic image processing with Sharp
-- **Type Safety**: End-to-end TypeScript with Zod validation
-- **Essential Hooks**: 100+ useful React hooks with ReactUse for common patterns
+# Watch mode
+npm run test:watch
 
-## 🤝 Get Started with Z.ai
+# Solo los engines de Slice 3-4
+npx vitest run src/engine/__tests__/slice3-4.test.ts
+```
 
-1. **Clone this scaffold** to jumpstart your project
-2. **Visit [chat.z.ai](https://chat.z.ai)** to access your AI coding assistant
-3. **Start building** with intelligent code generation and assistance
-4. **Deploy with confidence** using the production-ready setup
+**Cobertura de tests:**
+- `sanitizeLiteralText` — 14 tests (BOM, Unicode, smart quotes, control chars, whitespace)
+- `clasificarCE` — 25+ tests (conocimiento, destreza, habilidad, patterns, determinismo)
+- `buildContenidoCEMap` — 4 tests (mapping, orphan temas, edge cases)
 
----
+## 📋 Feature Flags
 
-Built with ❤️ for the developer community. Supercharged by [Z.ai](https://chat.z.ai) 🚀
+Todas las features nuevas están detrás de flags en `src/config/flags.ts`:
+
+```typescript
+ENABLE_ELIGIBILITY: true        // Semáforo elegibilidad
+ENABLE_CALENDAR_BRIDGE: true    // Puente calendario
+ENABLE_PROGRAMACION_WIZARD: true // Wizard 3 pasos
+ENABLE_DOCX_EXPORT: true        // Export DOCX
+ENABLE_ANEXO_IV: true           // Engine Anexo IV
+```
+
+## 🎯 Golden Cases
+
+| Caso | Certificado | Módulo | Estado |
+|------|------------|--------|--------|
+| **A** (estándar) | HOTA0308 | MF0265_3 | ✅ Datos completos UF0048 + UF0049 |
+| **B** (idioma C1) | — | MF1057_2 | 🔲 Pendiente |
+
+## 📦 Deploy
+
+```bash
+# Build local
+npm run build
+
+# Deploy a Vercel (autodeploy desde main)
+git push origin main
+```
+
+**Nota:** Los commits via GitHub API (Git Data API) no activan el webhook de Vercel. Requiere redeploy manual desde el dashboard de Vercel.
+
+## 📝 Limitaciones conocidas (v2.2)
+
+- **Heurístico tema→capacidad**: `buildContenidoCEMap` mapea tema[n] → capacidad[n] por índice. Si hay más temas que capacidades, los extras quedan sin CEs asociados.
+- **Solo Golden Case A**: Datos BOE completos solo para HOTA0308/MF0265_3. Otros certificados tienen stubs vacíos.
+- **Sin backend**: No hay persistencia en servidor. Los datos se guardan en IndexedDB del navegador.
+
+## 📄 Licencia
+
+Privado — © eFPear 2026
