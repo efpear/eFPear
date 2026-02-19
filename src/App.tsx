@@ -1,13 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
 import {
-  calcularDistribucionPedagogicaConBloom,
-  sugerirBloomPorNivel,
-  BLOOM_LABELS,
-  METODO_POR_BLOOM,
-} from './engine/distributionEngine';
-import { generarSdAsParaUA } from './engine/sdaEngine';
-import type { SituacionAprendizaje } from './types/sda';
-import {
   calcularModulosCascada,
   calcularMetricas,
   verificarCoherencia,
@@ -24,8 +16,7 @@ import { NotionPlanning } from './components/NotionPlanning';
 import { NotionConfigBar } from './components/NotionConfigBar';
 import type { FichaSEPE } from './engine/sepeParser';
 import { EligibilityCheck } from './components/EligibilityCheck';
-import { obtenerDatosUF, tieneDatosBoe } from './data/boeRegistry';
-import type { BoeUFData } from './types/boe';
+import { obtenerDatosMF } from './data/boeRegistry';
 import type { Certificado } from './types';
 import { ProgramacionWizard } from './components/ProgramacionWizard';
 import { FLAGS } from './config/flags';
@@ -177,14 +168,8 @@ export function App() {
   const metricas = useMemo(() => calcularMetricas(modulosCascada, calConfig), [modulosCascada, calConfig]);
   const coherencia = useMemo(() => verificarCoherencia(modulosCascada, calConfig), [modulosCascada, calConfig]);
 
-  // Curriculum engine
+  // Current module reference
   const currentMod = activeCert.modulos[selectedMod];
-  const distribucion = useMemo(() =>
-    currentMod ? calcularDistribucionPedagogicaConBloom(
-      currentMod.horas,
-      sugerirBloomPorNivel(activeCert.nivel as 1 | 2 | 3, 4)
-    ) : null,
-  [currentMod, activeCert.nivel]);
 
   // BOE data lookup for real capacidades/criterios/contenidos
   const boeData = useMemo(() => {
@@ -195,46 +180,6 @@ export function App() {
     return null;
   }, [currentMod]);
 
-  // Generate SdAs using the v1.2 advanced engine
-  // When BOE data is available, uses REAL contenidos and criterios from the BOE annex
-  const sdas = useMemo(() => {
-    if (!distribucion) return [];
-
-    // If BOE data available, extract all contenidos and criterios from UFs
-    const boeContenidos: string[] = boeData
-      ? boeData.unidadesFormativas.flatMap(uf =>
-          uf.contenidos.flatMap(c => [
-            c.titulo,
-            ...c.items.map(item => item.texto),
-          ])
-        )
-      : [];
-    const boeCriterios: string[] = boeData
-      ? boeData.unidadesFormativas.flatMap(uf =>
-          uf.capacidades.flatMap(cap =>
-            cap.criterios.map(ce => ce.codigo)
-          )
-        )
-      : [];
-
-    return distribucion.uas.map((ua) =>
-      generarSdAsParaUA({
-        horasTotales: ua.horasTotales,
-        bloom: Math.min(5, ua.bloomLevel) as 1 | 2 | 3 | 4 | 5,
-        contenidos: boeContenidos.length > 0
-          ? boeContenidos
-          : currentMod
-            ? [currentMod.titulo || 'los contenidos del modulo']
-            : ['los contenidos del modulo'],
-        criterios: boeCriterios.length > 0
-          ? boeCriterios
-          : currentMod
-            ? currentMod.capacidades.flatMap(c => c.criterios.map(ce => ce.id))
-            : [],
-        uaNumero: ua.numero,
-      })
-    );
-  }, [distribucion, currentMod, boeData]);
 
   return (
     <div className="min-h-screen bg-slate-50">

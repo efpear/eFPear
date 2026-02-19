@@ -698,10 +698,16 @@ export function ProgramacionWizard({ uf, moduloCodigo, moduloNombre, moduloHoras
   const handleUpdateSdAs = useCallback((uaId: string, sdas: SdADraft[]) => {
     setSdaState(prev => ({ ...prev, [uaId]: sdas }));
   }, []);
-  const [uaDefs, setUaDefs] = useState<UADefinition[]>(() => [
-    { id: 'UA1', titulo: '', horas: Math.round(uf.duracion / 2), temaIndices: [] },
-    { id: 'UA2', titulo: '', horas: uf.duracion - Math.round(uf.duracion / 2), temaIndices: [] },
-  ]);
+  const [uaDefs, setUaDefs] = useState<UADefinition[]>(() => {
+    // Auto-assign: split temas roughly in half between 2 UAs
+    const mid = Math.ceil(uf.contenidos.length / 2);
+    const tema1 = Array.from({ length: mid }, (_, i) => i);
+    const tema2 = Array.from({ length: uf.contenidos.length - mid }, (_, i) => i + mid);
+    return [
+      { id: 'UA1', titulo: '', horas: Math.round(uf.duracion / 2), temaIndices: tema1 },
+      { id: 'UA2', titulo: '', horas: uf.duracion - Math.round(uf.duracion / 2), temaIndices: tema2 },
+    ];
+  });
 
   // Step 1: Assign a tema to a UA
   const handleAssign = useCallback((temaIdx: number, uaId: string | null) => {
@@ -736,8 +742,13 @@ export function ProgramacionWizard({ uf, moduloCodigo, moduloNombre, moduloHoras
   // Validation: can advance?
   const canAdvance = useMemo(() => {
     if (step === 1) {
+      // All temas must be assigned and every UA must have at least 1 tema
       const assigned = uaDefs.reduce((s, ua) => s + ua.temaIndices.length, 0);
       return assigned === uf.contenidos.length && uaDefs.every(ua => ua.temaIndices.length > 0);
+    }
+    if (step === 2) {
+      // At least 1 CE must exist per UA (sanity check)
+      return uaDefs.every(ua => ua.temaIndices.length > 0);
     }
     return true;
   }, [step, uaDefs, uf.contenidos.length]);
