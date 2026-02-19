@@ -142,6 +142,7 @@ export function App() {
   const [dataSource, setDataSource] = useState<DataSource>('demo');
   const [activeCert, setActiveCert] = useState<Certificado>(DEMO_CERT);
   const [fichaInfo, setFichaInfo] = useState<FichaSEPE | null>(null);
+  const [eligibilityContext, setEligibilityContext] = useState<{ codigoMF: string; nombreMF: string } | null>(null);
 
   const handleCertificadoLoaded = useCallback((cert: Certificado, ficha: FichaSEPE) => {
     setActiveCert(cert);
@@ -286,10 +287,9 @@ export function App() {
         {tab === 'elegibilidad' ? (
           <EligibilityCheck
               onPlanificar={(codigoMF, nombreMF) => {
-                // Slice 2: Eligibility -> Calendar bridge
-                // Switch to calendar tab
+                // Slice 2: Eligibility -> Calendar bridge with context
+                setEligibilityContext({ codigoMF, nombreMF });
                 setTab('calendario');
-                // Scroll to top for UX
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
             />
@@ -319,6 +319,30 @@ export function App() {
                 </details>
               </div>
             </details>
+
+            {/* Slice 2: Eligibility context banner */}
+            {eligibilityContext && (
+              <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-4 py-3 animate-in fade-in">
+                <div className="flex items-center gap-2">
+                  <span className="text-green-600 text-lg">🚦</span>
+                  <div>
+                    <span className="text-sm font-semibold text-green-800">
+                      {eligibilityContext.codigoMF}
+                    </span>
+                    <span className="text-sm text-green-700 ml-1.5">
+                      {eligibilityContext.nombreMF}
+                    </span>
+                    <p className="text-xs text-green-600 mt-0.5">
+                      Resultado de elegibilidad positivo — configura fechas y turno para este módulo
+                    </p>
+                  </div>
+                </div>
+                <button onClick={() => setEligibilityContext(null)}
+                  className="text-xs text-green-600 hover:text-green-800 underline flex-shrink-0 ml-4">
+                  ✕ Cerrar
+                </button>
+              </div>
+            )}
 
             {/* Notion-style config pills */}
             <NotionConfigBar
