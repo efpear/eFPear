@@ -59,15 +59,15 @@ function calcEntries(
   horasDia: number,
   diasSemana: number
 ): ModuleEntry[] {
-  const lectivos = modules.filter(m => !m.excluido);
+  const lectivos    = modules.filter(m => !m.excluido);
   const horasSemana = horasDia * diasSemana;
-  let cursor = skipWeekend(new Date(fechaInicio));
+  let cursor        = skipWeekend(new Date(fechaInicio));
   const result: ModuleEntry[] = [];
   lectivos.forEach((mod, idx) => {
-    const semanas = horasSemana > 0 ? Math.ceil(mod.horas / horasSemana) : 1;
+    const semanas  = horasSemana > 0 ? Math.ceil(mod.horas / horasSemana) : 1;
     const sesiones = horasDia > 0 ? Math.ceil(mod.horas / horasDia) : mod.horas;
-    const inicio = new Date(cursor);
-    const fin = skipWeekend(addDays(inicio, semanas * 7 - 3));
+    const inicio   = new Date(cursor);
+    const fin      = skipWeekend(addDays(inicio, semanas * 7 - 3));
     result.push({ mod, inicio, fin, semanas, sesiones, c: COLOURS[idx % COLOURS.length] });
     cursor = skipWeekend(addDays(fin, 1));
   });
@@ -84,7 +84,7 @@ function Stat({ label, value, muted }: { label: string; value: string; muted?: b
   );
 }
 
-// -- Module legend --
+// -- Module legend: pills with code + name --
 function ModuleLegend({ entries }: { entries: ModuleEntry[] }) {
   if (entries.length === 0) return null;
   return (
@@ -93,11 +93,39 @@ function ModuleLegend({ entries }: { entries: ModuleEntry[] }) {
         <div
           key={mod.id}
           className={'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ' + c.bg + ' ' + c.text}
+          title={mod.titulo}
         >
           <div className={'w-1.5 h-1.5 rounded-full flex-shrink-0 ' + c.bar} />
           <span className="font-mono">{mod.codigo}</span>
+          <span className="text-[10px] opacity-70 max-w-[120px] truncate">&nbsp;{mod.titulo}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+// -- Practicos info: excluded modules listed with explanation --
+function PracticosInfo({ modules }: { modules: PlanningModule[] }) {
+  const excluidos = modules.filter(m => m.excluido);
+  if (excluidos.length === 0) return null;
+  return (
+    <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
+      <div className="px-4 py-2.5 border-b border-slate-100 flex items-center gap-2">
+        <span className="text-[11px] font-semibold text-slate-600">Modulos de practicas (MO/MP)</span>
+        <span className="text-[10px] text-slate-400 bg-slate-100 rounded-full px-2 py-0.5">
+          Cuentan en el total de horas, no en el calendario de imparticion
+        </span>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {excluidos.map(mod => (
+          <div key={mod.id} className="flex items-center gap-3 px-4 py-2">
+            <span className="text-[11px] font-mono font-bold text-slate-500 flex-shrink-0">{mod.codigo}</span>
+            <span className="text-xs text-slate-600 flex-1 min-w-0 truncate">{mod.titulo}</span>
+            <span className="text-xs font-bold text-slate-500 tabular-nums flex-shrink-0">{mod.horas}h</span>
+            <span className="text-[10px] text-slate-400 bg-slate-200 rounded px-1.5 py-0.5 flex-shrink-0">{mod.tipo}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -112,11 +140,16 @@ function CardsView({ entries, totalHoras }: { entries: ModuleEntry[]; totalHoras
         const pct = totalHoras > 0 ? Math.round((mod.horas / totalHoras) * 100) : 0;
         return (
           <div key={mod.id} className={'rounded-xl border ' + c.border + ' bg-white'}>
-            <div className="px-4 py-3 flex items-center gap-4">
-              <div className={'w-1 h-12 rounded-full flex-shrink-0 ' + c.bar} />
+            <div className="px-4 py-3 flex items-start gap-4">
+              <div className={'w-1 self-stretch rounded-full flex-shrink-0 ' + c.bar} />
               <div className="flex-1 min-w-0">
                 <div className={'text-[11px] font-mono font-bold tracking-wide ' + c.text}>{mod.codigo}</div>
-                <div className="text-sm text-slate-800 font-medium leading-snug mt-0.5 truncate">{mod.titulo}</div>
+                <div
+                  className="text-sm text-slate-800 font-medium leading-snug mt-0.5"
+                  style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' } as React.CSSProperties}
+                >
+                  {mod.titulo}
+                </div>
                 <div className="flex items-center gap-2 mt-2">
                   <div className="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden">
                     <div className={'h-1 rounded-full ' + c.bar} style={{ width: pct + '%' }} />
@@ -154,7 +187,6 @@ function GanttView({ entries }: { entries: ModuleEntry[] }) {
   const rangeEnd   = entries[entries.length - 1].fin;
   const totalMs    = Math.max(1, rangeEnd.getTime() - rangeStart.getTime());
 
-  // Build month headers
   const months: Array<{ label: string; leftPct: number; widthPct: number }> = [];
   let mCur = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1);
   while (mCur <= rangeEnd) {
@@ -175,9 +207,8 @@ function GanttView({ entries }: { entries: ModuleEntry[] }) {
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      {/* Month header */}
       <div className="flex border-b border-slate-100 bg-slate-50">
-        <div className="w-36 flex-shrink-0 border-r border-slate-100" />
+        <div className="w-44 flex-shrink-0 border-r border-slate-100" />
         <div className="flex-1 relative h-7">
           {months.map((m, i) => (
             <div
@@ -190,17 +221,16 @@ function GanttView({ entries }: { entries: ModuleEntry[] }) {
           ))}
         </div>
       </div>
-
-      {/* Module rows */}
       <div className="divide-y divide-slate-50">
         {entries.map(({ mod, inicio, fin, semanas, c }) => {
           const leftPct  = toPct(inicio);
           const widthPct = Math.max(1, toPct(fin) - leftPct);
           return (
-            <div key={mod.id} className="flex items-center min-h-[50px]">
-              <div className="w-36 flex-shrink-0 px-3 border-r border-slate-100">
+            <div key={mod.id} className="flex items-center min-h-[56px]">
+              <div className="w-44 flex-shrink-0 px-3 border-r border-slate-100 py-2">
                 <div className={'text-[10px] font-mono font-bold ' + c.text}>{mod.codigo}</div>
-                <div className="text-[10px] text-slate-400 mt-0.5">{semanas}sem - {mod.horas}h</div>
+                <div className="text-[10px] text-slate-500 mt-0.5 truncate" title={mod.titulo}>{mod.titulo}</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">{semanas}sem &middot; {mod.horas}h</div>
               </div>
               <div className="flex-1 relative h-8 px-1">
                 {months.map((m, i) => (
@@ -236,7 +266,6 @@ function CalendarView({ entries }: { entries: ModuleEntry[] }) {
   const rangeStart = entries[0].inicio;
   const rangeEnd   = entries[entries.length - 1].fin;
 
-  // Build list of months to display
   const months: Array<{ year: number; month: number }> = [];
   let mc = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1);
   while (mc <= rangeEnd) {
@@ -253,10 +282,10 @@ function CalendarView({ entries }: { entries: ModuleEntry[] }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
       {months.map(({ year, month }) => {
-        const monthLabel = new Date(year, month, 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
-        const firstDay   = new Date(year, month, 1);
+        const monthLabel  = new Date(year, month, 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+        const firstDay    = new Date(year, month, 1);
         const daysInMonth = new Date(year, month + 1, 0).getDate();
-        const firstDow   = firstDay.getDay();
+        const firstDow    = firstDay.getDay();
         const startOffset = firstDow === 0 ? 6 : firstDow - 1;
 
         const cells: Array<Date | null> = Array(startOffset).fill(null);
@@ -281,7 +310,7 @@ function CalendarView({ entries }: { entries: ModuleEntry[] }) {
                 <div key={wi} className="grid grid-cols-7 gap-px">
                   {week.map((day, di) => {
                     if (!day) return <div key={di} className="h-6" />;
-                    const entry    = entryFor(day);
+                    const entry     = entryFor(day);
                     const isInRange = day >= rangeStart && day <= rangeEnd;
                     const isWeekend = di >= 5;
                     return (
@@ -294,7 +323,7 @@ function CalendarView({ entries }: { entries: ModuleEntry[] }) {
                               ? entry.c.bg + ' ' + entry.c.text + ' font-semibold'
                               : 'text-slate-400'
                         )}
-                        title={entry ? entry.mod.codigo : ''}
+                        title={entry ? entry.mod.codigo + ' - ' + entry.mod.titulo : ''}
                       >
                         {day.getDate()}
                       </div>
@@ -329,7 +358,10 @@ export function PlanningDashboard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback(async (file: File) => {
-    if (file.type !== 'application/pdf') { setError('Solo se aceptan archivos PDF'); return; }
+    if (file.type !== 'application/pdf' && !file.name.endsWith('.pdf')) {
+      setError('Solo se aceptan archivos PDF');
+      return;
+    }
     setIsLoading(true); setError(null);
     try {
       const parsed = await parsePDFForPlanning(file);
@@ -387,16 +419,15 @@ export function PlanningDashboard() {
     const totalSemanas = entries.reduce((s, e) => s + e.semanas, 0);
     const fechaFin     = entries[entries.length - 1].fin;
     return {
-      nModulos:           dataset.modules.filter(m => !m.excluido).length,
-      nExcluidos:         excluidos.length,
-      totalHoras:         dataset.totalHorasLectivas,
+      nModulos:            dataset.modules.filter(m => !m.excluido).length,
+      nExcluidos:          excluidos.length,
+      totalHorasLectivas:  dataset.totalHorasLectivas,
       totalHorasPracticas: dataset.totalHorasPracticas,
       totalSemanas,
       fechaFin,
     };
   }, [dataset, entries]);
 
-  // -- ENTRY PANEL --
   if (!dataset) {
     return (
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
@@ -406,19 +437,23 @@ export function PlanningDashboard() {
             Sube una ficha SEPE, certificado o anexo en PDF para generar el calendario automaticamente.
           </p>
         </div>
-        <div
+        <label
+          htmlFor="planning-file-input"
           onDrop={handleDrop}
           onDragOver={e => { e.preventDefault(); setDragActive(true); }}
           onDragLeave={() => setDragActive(false)}
-          onClick={() => fileInputRef.current?.click()}
-          className={'border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-all ' + (
+          className={'block border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-all ' + (
             dragActive  ? 'border-green-500 bg-green-50' :
             isLoading   ? 'border-amber-300 bg-amber-50' :
             'border-slate-300 hover:border-green-400 hover:bg-slate-50'
           )}
         >
           <input
-            ref={fileInputRef} type="file" accept="application/pdf" className="hidden"
+            id="planning-file-input"
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf,.pdf"
+            className="sr-only"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
           />
           {isLoading ? (
@@ -433,7 +468,7 @@ export function PlanningDashboard() {
               <p className="text-xs text-slate-400">Ficha SEPE &middot; Certificado completo &middot; Anexo del certificado</p>
             </div>
           )}
-        </div>
+        </label>
         {error && (
           <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</div>
         )}
@@ -452,11 +487,8 @@ export function PlanningDashboard() {
     );
   }
 
-  // -- DASHBOARD --
   return (
     <div className="space-y-3">
-
-      {/* Config + summary */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-4 py-3 flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
@@ -496,18 +528,19 @@ export function PlanningDashboard() {
         </div>
         {summary && (
           <div className="border-t border-slate-100 px-4 py-2 flex flex-wrap gap-6 bg-slate-50">
-            <Stat label="modulos"  value={String(summary.nModulos)} />
-            <Stat label="horas"    value={summary.totalHoras + 'h'} />
-            {summary.nExcluidos > 0 && <Stat label="practicas" value={summary.totalHorasPracticas + 'h'} muted />}
-            <Stat label="semanas"  value={String(summary.totalSemanas)} />
-            <Stat label="inicio"   value={fmtISO(new Date(fechaInicio))} />
-            <Stat label="fin est." value={fmtISO(summary.fechaFin)} />
-            <Stat label="h/sem"    value={(horasDia * diasSemana) + 'h'} muted />
+            <Stat label="modulos"   value={String(summary.nModulos)} />
+            <Stat label="lectivas"  value={summary.totalHorasLectivas + 'h'} />
+            {summary.nExcluidos > 0 && (
+              <Stat label={'MO/MP (' + summary.nExcluidos + ')'} value={summary.totalHorasPracticas + 'h'} muted />
+            )}
+            <Stat label="semanas"   value={String(summary.totalSemanas)} />
+            <Stat label="inicio"    value={fmtISO(new Date(fechaInicio))} />
+            <Stat label="fin est."  value={fmtISO(summary.fechaFin)} />
+            <Stat label="h/sem"     value={(horasDia * diasSemana) + 'h'} muted />
           </div>
         )}
       </div>
 
-      {/* View switcher */}
       <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1 w-fit">
         {(['cards', 'gantt', 'calendar'] as ViewMode[]).map(mode => (
           <button
@@ -524,17 +557,16 @@ export function PlanningDashboard() {
         ))}
       </div>
 
-      {/* View content */}
-      {viewMode === 'cards'    && <CardsView entries={entries} totalHoras={summary?.totalHoras ?? 0} />}
+      {viewMode === 'cards'    && <CardsView entries={entries} totalHoras={summary?.totalHorasLectivas ?? 0} />}
       {viewMode === 'gantt'    && <GanttView entries={entries} />}
       {viewMode === 'calendar' && <CalendarView entries={entries} />}
 
-      {/* Legend under Gantt / Calendar */}
       {(viewMode === 'gantt' || viewMode === 'calendar') && (
         <ModuleLegend entries={entries} />
       )}
 
-      {/* Module inspector (PDF path only, collapsed by default) */}
+      {dataset && <PracticosInfo modules={dataset.modules} />}
+
       {dataset.source !== 'manual' && (
         <details onToggle={e => setShowModules((e.target as HTMLDetailsElement).open)}>
           <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-600 select-none py-1">
@@ -606,7 +638,6 @@ export function PlanningDashboard() {
         </details>
       )}
 
-      {/* Add module (manual path only) */}
       {dataset.source === 'manual' && (
         <button
           onClick={addModule}

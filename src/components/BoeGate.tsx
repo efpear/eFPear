@@ -1,25 +1,23 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from 'react';
 
 interface BoeGateProps {
   children: React.ReactNode;
 }
 
 /**
- * BoeGate — Block B hard gate for Programacion Didactica tab.
+ * BoeGate -- Block B hard gate for Programacion Didactica tab.
  *
- * The wizard is completely blocked until the user uploads a BOE PDF.
- * Once uploaded, the file is stored in state and the wizard is unlocked.
+ * Uses native label+htmlFor pattern for reliable cross-browser file input.
  * Slice 6: file stored as File object. Slice 7 will parse it.
  */
 export function BoeGate({ children }: BoeGateProps) {
-  const [boeFile, setBoeFile] = useState<File | null>(null);
+  const [boeFile, setBoeFile]       = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [error, setError]           = useState<string | null>(null);
 
   const handleFile = useCallback((file: File) => {
-    if (file.type !== "application/pdf") {
-      setError("El BOE debe ser un archivo PDF");
+    if (file.type !== 'application/pdf' && !file.name.endsWith('.pdf')) {
+      setError('El BOE debe ser un archivo PDF');
       return;
     }
     setError(null);
@@ -36,71 +34,56 @@ export function BoeGate({ children }: BoeGateProps) {
     [handleFile]
   );
 
-  // BOE not yet uploaded — show hard gate
   if (!boeFile) {
     return (
       <div className="space-y-6">
-        {/* Hard gate card */}
-        <div className="bg-white rounded-xl border-2 border-dashed border-slate-300 shadow-sm p-10 text-center space-y-4">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-slate-100">
-            <span className="text-3xl">📋</span>
-          </div>
-          <div>
-            <h3 className="text-base font-semibold text-slate-900">
-              Programacion Didactica — Anexo IV
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-8 space-y-6">
+          <div className="text-center space-y-1">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-slate-100">
+              <span className="text-2xl">&#128217;</span>
+            </div>
+            <h3 className="text-sm font-semibold text-slate-900">
+              Programacion Didactica &mdash; Anexo IV
             </h3>
-            <p className="text-sm text-slate-600 mt-2 max-w-md mx-auto">
+            <p className="text-xs text-slate-500 max-w-sm mx-auto">
               Para generar una programacion didactica fiable, es necesario subir el BOE del certificado.
             </p>
-            <p className="text-xs text-slate-400 mt-2">
-              El BOE es la fuente normativa oficial. Sin el, no es posible garantizar la literalidad exigida por la Directiva v2.2.
-            </p>
           </div>
 
-          {/* Dropzone */}
-          <div
+          {/* Drop zone using label+htmlFor -- reliable cross-browser pattern */}
+          <label
+            htmlFor="boe-file-input"
             onDrop={handleDrop}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragActive(true);
-            }}
+            onDragOver={e => { e.preventDefault(); setDragActive(true); }}
             onDragLeave={() => setDragActive(false)}
-            onClick={() => inputRef.current?.click()}
-            className={`mx-auto max-w-sm border-2 border-dashed rounded-xl p-6 cursor-pointer transition-all ${
+            className={'block mx-auto max-w-sm border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ' + (
               dragActive
-                ? "border-green-500 bg-green-50"
-                : "border-slate-300 hover:border-green-400 hover:bg-green-50/50"
-            }`}
+                ? 'border-green-500 bg-green-50'
+                : 'border-slate-300 hover:border-green-400 hover:bg-slate-50'
+            )}
           >
             <input
-              ref={inputRef}
+              id="boe-file-input"
               type="file"
-              accept="application/pdf"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleFile(file);
-              }}
+              accept="application/pdf,.pdf"
+              className="sr-only"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
             />
             <div className="space-y-2">
-              <div className="text-2xl">📄</div>
-              <p className="text-sm font-medium text-slate-700">
-                Sube el PDF del BOE aqui
-              </p>
-              <p className="text-xs text-slate-400">
-                Arrastra o haz clic para seleccionar
-              </p>
+              <div className="text-4xl">&#128196;</div>
+              <p className="text-sm font-medium text-slate-700">Sube el PDF del BOE aqui</p>
+              <p className="text-xs text-slate-400">Arrastra o haz clic para seleccionar</p>
             </div>
-          </div>
+          </label>
 
           {error && (
-            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 max-w-sm mx-auto">
+            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 max-w-sm mx-auto text-center">
               {error}
             </p>
           )}
 
-          <div className="text-[10px] text-slate-400 space-y-1 max-w-sm mx-auto text-left border-t border-slate-100 pt-4">
-            <p className="font-medium text-slate-500">¿Que es el BOE del certificado?</p>
+          <div className="text-[10px] text-slate-400 space-y-1 max-w-sm mx-auto border-t border-slate-100 pt-4">
+            <p className="font-medium text-slate-500">Que es el BOE del certificado?</p>
             <p>El Real Decreto que regula el certificado de profesionalidad. Contiene capacidades, criterios de evaluacion, contenidos, espacios y equipamientos oficiales.</p>
             <p>Ejemplo: BOE-A-2011-9517 para HOTA0308 Recepcion en Alojamientos.</p>
           </div>
@@ -109,18 +92,16 @@ export function BoeGate({ children }: BoeGateProps) {
     );
   }
 
-  // BOE uploaded — show children (Wizard) with a dismissible header
   return (
     <div className="space-y-4">
-      {/* BOE loaded indicator */}
       <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-4 py-2.5">
         <div className="flex items-center gap-2">
-          <span className="text-green-600">✓</span>
+          <span className="text-green-600">&#10003;</span>
           <span className="text-xs font-medium text-green-800">
             BOE cargado: {boeFile.name}
           </span>
           <span className="text-[10px] text-green-600">
-            ({(boeFile.size / 1024).toFixed(0)} KB) · Parser activo en Slice 7
+            ({(boeFile.size / 1024).toFixed(0)} KB) &middot; Parser activo en Slice 7
           </span>
         </div>
         <button
@@ -130,8 +111,6 @@ export function BoeGate({ children }: BoeGateProps) {
           Cambiar BOE
         </button>
       </div>
-
-      {/* Wizard content */}
       {children}
     </div>
   );
