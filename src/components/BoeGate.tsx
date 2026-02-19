@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 interface BoeGateProps {
   children: React.ReactNode;
@@ -7,13 +7,14 @@ interface BoeGateProps {
 /**
  * BoeGate -- Block B hard gate for Programacion Didactica tab.
  *
- * Uses native label+htmlFor pattern for reliable cross-browser file input.
- * Slice 6: file stored as File object. Slice 7 will parse it.
+ * Uses useRef + programmatic .click() for reliable cross-browser file picking.
+ * Slice 7 will parse the uploaded BOE PDF into structured data.
  */
 export function BoeGate({ children }: BoeGateProps) {
   const [boeFile, setBoeFile]       = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [error, setError]           = useState<string | null>(null);
+  const fileInputRef                 = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback((file: File) => {
     if (file.type !== 'application/pdf' && !file.name.endsWith('.pdf')) {
@@ -50,23 +51,23 @@ export function BoeGate({ children }: BoeGateProps) {
             </p>
           </div>
 
-          {/* Drop zone using label+htmlFor -- reliable cross-browser pattern */}
-          <label
-            htmlFor="boe-file-input"
+          {/* Drop zone -- programmatic click via ref, same pattern as PlanningDashboard */}
+          <div
+            onClick={() => fileInputRef.current?.click()}
             onDrop={handleDrop}
             onDragOver={e => { e.preventDefault(); setDragActive(true); }}
             onDragLeave={() => setDragActive(false)}
-            className={'block mx-auto max-w-sm border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ' + (
+            className={'mx-auto max-w-sm border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ' + (
               dragActive
                 ? 'border-green-500 bg-green-50'
                 : 'border-slate-300 hover:border-green-400 hover:bg-slate-50'
             )}
           >
             <input
-              id="boe-file-input"
+              ref={fileInputRef}
               type="file"
               accept="application/pdf,.pdf"
-              className="sr-only"
+              className="hidden"
               onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
             />
             <div className="space-y-2">
@@ -74,7 +75,7 @@ export function BoeGate({ children }: BoeGateProps) {
               <p className="text-sm font-medium text-slate-700">Sube el PDF del BOE aqui</p>
               <p className="text-xs text-slate-400">Arrastra o haz clic para seleccionar</p>
             </div>
-          </label>
+          </div>
 
           {error && (
             <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 max-w-sm mx-auto text-center">
