@@ -389,7 +389,7 @@ function Step2Criterios({
             </div>
 
             {/* Capacidades / CEs */}
-            <div className="divide-y" style={{ divideColor: 'var(--border)' }}>
+            <div className="divide-y">
               {filteredCaps.map(cap => (
                 <div key={cap.codigo} className="px-4 py-3" style={{ backgroundColor: 'var(--card)' }}>
                   <div className="flex items-start gap-2 mb-2">

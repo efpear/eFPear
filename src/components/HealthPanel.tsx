@@ -26,9 +26,6 @@ function IssueRow({ issue }: { issue: ValidationIssue }) {
           <code className="text-[10px]" style={{ color: 'var(--muted-foreground)', fontFamily: 'var(--font-mono)' }}>
             {issue.ruleId}
           </code>
-          {issue.uaId && (
-            <span className="oat-badge secondary">{issue.uaId}</span>
-          )}
         </div>
         <p className="text-xs mt-1" style={{ color: 'var(--foreground)' }}>{issue.message}</p>
       </div>
