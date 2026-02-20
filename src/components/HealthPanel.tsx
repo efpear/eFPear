@@ -1,118 +1,77 @@
-// src/components/HealthPanel.tsx — Validation Health Panel
-//
-// Consumes ValidationIssue[] from validationEngine and renders
-// an expandable health summary panel below the wizard.
+// src/components/HealthPanel.tsx -- Validation Health Panel
+// OAT redesign: details.accordion, oat-badge, Lucide icons
 
-import React, { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { CheckCircle, AlertCircle, AlertTriangle } from 'lucide-react';
 import type { ValidationIssue, Severity } from '../engine/validationEngine';
 
 interface HealthPanelProps {
   issues: ValidationIssue[];
 }
 
-const SEVERITY_CONFIG: Record<Severity, { icon: string; label: string; bg: string; text: string; border: string }> = {
-  error: {
-    icon: '❌',
-    label: 'Error Crítico',
-    bg: 'bg-red-50',
-    text: 'text-red-800',
-    border: 'border-red-200',
-  },
-  warning: {
-    icon: '⚠️',
-    label: 'Aviso',
-    bg: 'bg-amber-50',
-    text: 'text-amber-800',
-    border: 'border-amber-200',
-  },
+const SEVERITY_CFG: Record<Severity, { icon: typeof AlertCircle; badgeClass: string; label: string }> = {
+  error:   { icon: AlertCircle,   badgeClass: 'danger',  label: 'Error critico' },
+  warning: { icon: AlertTriangle, badgeClass: 'warning', label: 'Aviso' },
 };
 
-export function HealthPanel({ issues }: HealthPanelProps) {
-  const [expanded, setExpanded] = useState(true);
+function IssueRow({ issue }: { issue: ValidationIssue }) {
+  const cfg = SEVERITY_CFG[issue.level];
+  const Icon = cfg.icon;
+  return (
+    <div className="flex items-start gap-3 px-4 py-2.5 border-b last:border-0" style={{ borderColor: 'var(--border)' }}>
+      <Icon size={13} style={{ flexShrink: 0, marginTop: '2px', color: issue.level === 'error' ? 'var(--danger)' : 'var(--warning)' }} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={'oat-badge ' + cfg.badgeClass}>{cfg.label}</span>
+          <code className="text-[10px]" style={{ color: 'var(--muted-foreground)', fontFamily: 'var(--font-mono)' }}>
+            {issue.ruleId}
+          </code>
+          {issue.uaId && (
+            <span className="oat-badge secondary">{issue.uaId}</span>
+          )}
+        </div>
+        <p className="text-xs mt-1" style={{ color: 'var(--foreground)' }}>{issue.message}</p>
+      </div>
+    </div>
+  );
+}
 
+export function HealthPanel({ issues }: HealthPanelProps) {
   const { errors, warnings } = useMemo(() => ({
-    errors: issues.filter(i => i.level === 'error'),
+    errors:   issues.filter(i => i.level === 'error'),
     warnings: issues.filter(i => i.level === 'warning'),
   }), [issues]);
 
   const allClear = issues.length === 0;
 
   return (
-    <div className="mt-4 rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
-      {/* Header */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-slate-700">
-            🏥 Salud de la Programación
-          </span>
-          {allClear ? (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700">
-              ✓ Todo correcto
-            </span>
-          ) : (
-            <span className="flex items-center gap-1.5">
-              {errors.length > 0 && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-700">
-                  {errors.length} error{errors.length !== 1 ? 'es' : ''}
-                </span>
-              )}
-              {warnings.length > 0 && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700">
-                  {warnings.length} aviso{warnings.length !== 1 ? 's' : ''}
-                </span>
-              )}
-            </span>
-          )}
-        </div>
-        <span className="text-slate-400 text-xs">{expanded ? '▾' : '▸'}</span>
-      </button>
+    <details className="accordion" open={!allClear}>
+      <summary style={{ color: 'var(--foreground)', fontSize: 'var(--text-7)' }}>
+        <span className="flex items-center gap-2">
+          {allClear
+            ? <CheckCircle size={14} style={{ color: 'var(--success)' }} />
+            : <AlertCircle size={14} style={{ color: errors.length > 0 ? 'var(--danger)' : 'var(--warning)' }} />
+          }
+          <span className="font-medium">Salud de la Programacion</span>
+          {allClear && <span className="oat-badge success">Todo correcto</span>}
+          {errors.length > 0 && <span className="oat-badge danger">{errors.length} {errors.length === 1 ? 'error' : 'errores'}</span>}
+          {warnings.length > 0 && <span className="oat-badge warning">{warnings.length} {warnings.length === 1 ? 'aviso' : 'avisos'}</span>}
+        </span>
+      </summary>
 
-      {/* Issue List */}
-      {expanded && !allClear && (
-        <div className="divide-y divide-slate-100">
-          {/* Errors first */}
-          {errors.map((issue, idx) => (
-            <IssueRow key={`err-${idx}`} issue={issue} />
-          ))}
-          {/* Then warnings */}
-          {warnings.map((issue, idx) => (
-            <IssueRow key={`warn-${idx}`} issue={issue} />
-          ))}
+      {allClear ? (
+        <div className="flex items-center gap-2 px-4 py-3">
+          <CheckCircle size={14} style={{ color: 'var(--success)' }} />
+          <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+            No se detectaron problemas. Puedes exportar el Anexo IV.
+          </p>
+        </div>
+      ) : (
+        <div style={{ padding: 0 }}>
+          {errors.map((issue, i) => <IssueRow key={`e-${i}`} issue={issue} />)}
+          {warnings.map((issue, i) => <IssueRow key={`w-${i}`} issue={issue} />)}
         </div>
       )}
-
-      {/* All clear message */}
-      {expanded && allClear && (
-        <div className="px-4 py-6 text-center">
-          <p className="text-sm text-green-600 font-medium">✅ Todas las validaciones superadas</p>
-          <p className="text-[10px] text-slate-400 mt-1">Horas, criterios, contenidos y SdAs están correctos.</p>
-        </div>
-      )}
-    </div>
+    </details>
   );
 }
-
-function IssueRow({ issue }: { issue: ValidationIssue }) {
-  const config = SEVERITY_CONFIG[issue.level];
-  return (
-    <div className={`flex items-start gap-3 px-4 py-2.5 ${config.bg}`}>
-      <span className="text-sm flex-shrink-0 mt-0.5">{config.icon}</span>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className={`text-[10px] font-bold uppercase tracking-wider ${config.text}`}>
-            {config.label}
-          </span>
-          <span className="text-[10px] text-slate-400 font-mono">
-            ({issue.id})
-          </span>
-        </div>
-        <p className={`text-xs ${config.text} mt-0.5`}>{issue.message}</p>
-      </div>
-    </div>
-  );
-}
-
-export default HealthPanel;

@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { FileText } from 'lucide-react';
 
 interface BoeGateProps {
   children: React.ReactNode;
@@ -6,9 +7,7 @@ interface BoeGateProps {
 
 /**
  * BoeGate -- Block B hard gate for Programacion Didactica tab.
- *
- * Uses useRef + programmatic .click() for reliable cross-browser file picking.
- * Slice 7 will parse the uploaded BOE PDF into structured data.
+ * OAT redesign: Lucide icons, oat-card drop zone, CSS vars.
  */
 export function BoeGate({ children }: BoeGateProps) {
   const [boeFile, setBoeFile]       = useState<File | null>(null);
@@ -37,80 +36,91 @@ export function BoeGate({ children }: BoeGateProps) {
 
   if (!boeFile) {
     return (
-      <div className="space-y-6">
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-8 space-y-6">
-          <div className="text-center space-y-1">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-slate-100">
-              <span className="text-2xl">&#128217;</span>
-            </div>
-            <h3 className="text-sm font-semibold text-slate-900">
+      <div className="space-y-3 max-w-xl mx-auto">
+        <div className="oat-card" style={{ padding: 0 }}>
+          <div className="px-5 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+            <h3 className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
               Programacion Didactica &mdash; Anexo IV
             </h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              Para generar una programacion didactica fiable, es necesario subir el BOE del certificado.
+            <p className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
+              Para generar una programacion didactica fiable es necesario subir el BOE del certificado.
             </p>
           </div>
 
-          {/* Drop zone -- programmatic click via ref, same pattern as PlanningDashboard */}
           <div
+            role="button"
+            tabIndex={0}
+            aria-label="Subir BOE PDF"
             onClick={() => fileInputRef.current?.click()}
+            onKeyDown={e => e.key === 'Enter' && fileInputRef.current?.click()}
             onDrop={handleDrop}
             onDragOver={e => { e.preventDefault(); setDragActive(true); }}
             onDragLeave={() => setDragActive(false)}
-            className={'mx-auto max-w-sm border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ' + (
-              dragActive
-                ? 'border-green-500 bg-green-50'
-                : 'border-slate-300 hover:border-green-400 hover:bg-slate-50'
-            )}
+            className="mx-5 my-4 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-3 py-12 cursor-pointer transition-colors"
+            style={{
+              borderColor: dragActive ? 'var(--primary)' : 'var(--border)',
+              backgroundColor: dragActive ? 'color-mix(in srgb, var(--primary) 5%, transparent)' : 'transparent',
+            }}
           >
             <input
               ref={fileInputRef}
               type="file"
               accept="application/pdf,.pdf"
-              className="hidden"
+              className="sr-only"
               onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
             />
-            <div className="space-y-2">
-              <div className="text-4xl">&#128196;</div>
-              <p className="text-sm font-medium text-slate-700">Sube el PDF del BOE aqui</p>
-              <p className="text-xs text-slate-400">Arrastra o haz clic para seleccionar</p>
+            <FileText size={32} style={{ color: dragActive ? 'var(--primary)' : 'var(--muted-foreground)' }} />
+            <div className="text-center">
+              <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                Arrastra el PDF del BOE aqui
+              </p>
+              <p className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
+                Arrastra o haz clic para seleccionar
+              </p>
             </div>
           </div>
 
           {error && (
-            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 max-w-sm mx-auto text-center">
+            <div className="mx-5 mb-4 px-3 py-2 rounded-lg text-xs border" style={{
+              backgroundColor: 'color-mix(in srgb, var(--danger) 8%, transparent)',
+              borderColor: 'color-mix(in srgb, var(--danger) 30%, transparent)',
+              color: 'var(--danger)',
+            }}>
               {error}
-            </p>
+            </div>
           )}
 
-          <div className="text-[10px] text-slate-400 space-y-1 max-w-sm mx-auto border-t border-slate-100 pt-4">
-            <p className="font-medium text-slate-500">Que es el BOE del certificado?</p>
-            <p>El Real Decreto que regula el certificado de profesionalidad. Contiene capacidades, criterios de evaluacion, contenidos, espacios y equipamientos oficiales.</p>
-            <p>Ejemplo: BOE-A-2011-9517 para HOTA0308 Recepcion en Alojamientos.</p>
+          <div className="px-5 pb-5">
+            <p className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
+              El BOE debe contener el texto completo del certificado de profesionalidad con
+              capacidades, criterios de evaluacion, contenidos, duracion de UFs y requisitos de espacios.
+            </p>
           </div>
         </div>
       </div>
     );
   }
 
+  // BOE uploaded: show file badge and render children
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-4 py-2.5">
-        <div className="flex items-center gap-2">
-          <span className="text-green-600">&#10003;</span>
-          <span className="text-xs font-medium text-green-800">
-            BOE cargado: {boeFile.name}
-          </span>
-          <span className="text-[10px] text-green-600">
-            ({(boeFile.size / 1024).toFixed(0)} KB) &middot; Parser activo en Slice 7
-          </span>
+    <div className="space-y-3">
+      <div className="oat-card" style={{ padding: '0.75rem 1rem' }}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FileText size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+            <span className="text-xs font-medium" style={{ color: 'var(--foreground)' }}>
+              {boeFile.name}
+            </span>
+            <span className="oat-badge secondary">{(boeFile.size / 1024).toFixed(0)} KB</span>
+          </div>
+          <button
+            onClick={() => setBoeFile(null)}
+            className="text-xs cursor-pointer"
+            style={{ background: 'none', border: 'none', padding: '0.25rem', color: 'var(--muted-foreground)' }}
+          >
+            Cambiar
+          </button>
         </div>
-        <button
-          onClick={() => setBoeFile(null)}
-          className="text-xs text-green-600 hover:text-green-800 underline ml-4"
-        >
-          Cambiar BOE
-        </button>
       </div>
       {children}
     </div>

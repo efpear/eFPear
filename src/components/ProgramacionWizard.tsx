@@ -1,17 +1,17 @@
 /**
- * ProgramacionWizard.tsx — Agent C: The UI Wizard Dev
+ * ProgramacionWizard.tsx -- Agent C: The UI Wizard Dev
  *
- * 3-step Minerva flow for Anexo IV Programación Didáctica:
- *   Step 1: Contenidos (Col 2) — select BOE content blocks per UA
- *   Step 2: Criterios (Col 1) — auto-derived from selected contenidos (read-only)
- *   Step 3: SdAs (Col 3) — build learning situations from Col1 × Col2
+ * 3-step Minerva flow for Anexo IV Programacion Didactica:
+ *   Step 1: Contenidos (Col 2) -- select BOE content blocks per UA
+ *   Step 2: Criterios (Col 1) -- auto-derived from selected contenidos (read-only)
+ *   Step 3: SdAs (Col 3) -- build learning situations from Col1 x Col2
  *
- * Style: Notion-inspired (high density, clean, thin borders, professional typography)
- *
- * Data flow: uses existing boeDataHOTA0308.ts as source (BoeUFData format)
+ * OAT redesign: oat-card, oat-badge, oat-module-card, semantic details/summary,
+ * Lucide icons, CSS custom property UA palette.
  */
 
 import React, { useState, useMemo, useCallback } from 'react';
+import { Check, Plus, X, FileText, AlertTriangle } from 'lucide-react';
 import type { BoeUFData } from '../types/boe';
 import { clasificarCE, TIPOLOGIA_COLORS, buildContenidoCEMap } from '../engine/ceUtils';
 import { downloadAnexoIVDocx } from '../engine/anexoIVExport';
@@ -25,26 +25,23 @@ import type { AnexoIVExportData, UAExport } from '../engine/anexoIVExport';
 
 type WizardStep = 1 | 2 | 3;
 
-/** Which CEs are linked to each contenido item */
 interface ContenidoCELink {
   contenidoTema: number;
   contenidoIndex: number;
-  ceIds: string[]; // e.g. ["CE1.1", "CE1.2"]
+  ceIds: string[];
 }
 
-/** UA definition from Step 1 */
 interface UADefinition {
   id: string;
   titulo: string;
   horas: number;
-  temaIndices: number[]; // indices into uf.contenidos
+  temaIndices: number[];
 }
 
-/** Agrupamiento options for SdA */
 const AGRUPAMIENTOS = [
   'Individual',
   'Parejas',
-  'Pequeño grupo',
+  'Pequeno grupo',
   'Grupos 3-4',
   'Grupos 5-6',
   'Gran grupo',
@@ -55,10 +52,8 @@ const AGRUPAMIENTOS = [
   'Parejas y gran grupo',
 ];
 
-/** Fase options for SdA */
 type SdAFase = 'Inicio' | 'Desarrollo' | 'Cierre';
 
-/** SdA draft from Step 3 */
 interface SdADraft {
   numero: number;
   fase: SdAFase;
@@ -83,19 +78,49 @@ interface ProgramacionWizardProps {
 }
 
 // ============================================
-// CE CLASSIFICATION (deterministic, verb-based)
+// UA COLOUR PALETTE -- hex injected as --mc
 // ============================================
 
+const UA_PALETTE = [
+  { mc: '#059669', text: '#065f46', light: '#ecfdf5' },
+  { mc: '#0284c7', text: '#0c4a6e', light: '#e0f2fe' },
+  { mc: '#d97706', text: '#78350f', light: '#fffbeb' },
+  { mc: '#7c3aed', text: '#4c1d95', light: '#ede9fe' },
+  { mc: '#e11d48', text: '#881337', light: '#fff1f2' },
+  { mc: '#0891b2', text: '#164e63', light: '#ecfeff' },
+];
+
+// Legacy alias for Step1/2 sub-components that reference UA_COLORS
+const UA_COLORS = UA_PALETTE.map(p => ({
+  bg:     '',
+  text:   '',
+  border: '',
+  mc:     p.mc,
+  tcText: p.text,
+  light:  p.light,
+}));
+
 // ============================================
-// CONTENT-TO-CE MAPPING (from golden sample)
+// METHODOLOGY OPTIONS
 // ============================================
 
-/**
- * Build a map from contenido text → CE IDs.
- * For now, uses a heuristic: match CE codes mentioned in contenido items,
- * or fall back to matching by capacidad theme number.
- */
-
+const METODOLOGIAS = [
+  'Metodo interrogativo',
+  'Metodo expositivo-interrogativo',
+  'Expositivo con ejemplo aplicado',
+  'Aprendizaje basado en problemas',
+  'Expositivo-participativo',
+  'Estudio de caso',
+  'Analisis de textos y discusion guiada',
+  'Role-playing (simulacion)',
+  'Metodo demostrativo',
+  'Investigacion guiada y debate',
+  'Demostrativo en aula informatica',
+  'Resolucion de problemas',
+  'Demostrativo + practica individual',
+  'Debate dirigido con analisis de dilemas',
+  'Clase de sintesis con participacion activa',
+];
 
 // ============================================
 // STEP INDICATOR
@@ -103,31 +128,37 @@ interface ProgramacionWizardProps {
 
 function StepIndicator({ current, total }: { current: WizardStep; total: number }) {
   const steps = [
-    { n: 1, label: 'Contenidos', desc: 'Seleccionar bloques BOE' },
-    { n: 2, label: 'Criterios', desc: 'Capacidades y CEs derivados' },
-    { n: 3, label: 'Situaciones', desc: 'Construir SdAs' },
+    { n: 1 as WizardStep, label: 'Contenidos', desc: 'Seleccionar bloques BOE' },
+    { n: 2 as WizardStep, label: 'Criterios',  desc: 'Capacidades y CEs derivados' },
+    { n: 3 as WizardStep, label: 'Situaciones', desc: 'Construir SdAs' },
   ];
 
   return (
-    <div className="flex items-center gap-0 mb-6">
+    <div className="flex items-center gap-0">
       {steps.slice(0, total).map((s, i) => (
         <div key={s.n} className="flex items-center">
           {i > 0 && (
-            <div className={`w-12 h-px mx-2 ${s.n <= current ? 'bg-green-400' : 'bg-slate-200'}`} />
+            <div
+              className="h-px mx-3"
+              style={{ width: '3rem', backgroundColor: s.n <= current ? 'var(--primary)' : 'var(--border)' }}
+            />
           )}
           <div className="flex items-center gap-2">
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-              s.n < current ? 'bg-green-600 text-white' :
-              s.n === current ? 'bg-green-600 text-white ring-2 ring-green-200' :
-              'bg-slate-100 text-slate-400'
-            }`}>
-              {s.n < current ? '✓' : s.n}
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all"
+              style={{
+                backgroundColor: s.n <= current ? 'var(--primary)' : 'var(--muted)',
+                color:           s.n <= current ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
+                boxShadow:       s.n === current ? '0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent)' : 'none',
+              }}
+            >
+              {s.n < current ? <Check size={12} /> : s.n}
             </div>
             <div>
-              <div className={`text-xs font-semibold ${s.n <= current ? 'text-slate-900' : 'text-slate-400'}`}>
+              <div className="text-xs font-semibold" style={{ color: s.n <= current ? 'var(--foreground)' : 'var(--muted-foreground)' }}>
                 {s.label}
               </div>
-              <div className="text-[10px] text-slate-400">{s.desc}</div>
+              <div className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>{s.desc}</div>
             </div>
           </div>
         </div>
@@ -155,7 +186,6 @@ function Step1Contenidos({
   onRemoveUA: (uaId: string) => void;
   onSetHoras: (uaId: string, horas: number) => void;
 }) {
-  // Track which temas are assigned to which UA
   const temaAssignment = useMemo(() => {
     const map = new Map<number, string>();
     uaDefs.forEach(ua => {
@@ -169,50 +199,61 @@ function Step1Contenidos({
 
   return (
     <div className="space-y-4">
-      {/* UA Summary bar */}
-      <div className="flex items-center justify-between bg-slate-50 rounded-lg px-4 py-3 border border-slate-200">
-        <div className="flex items-center gap-4 text-xs text-slate-600">
-          <span><strong>{uaDefs.length}</strong> UAs</span>
-          <span><strong>{totalHoras}</strong>/{uf.duracion}h asignadas</span>
-          <span className={unassignedCount > 0 ? 'text-amber-600 font-medium' : 'text-green-600'}>
-            {unassignedCount > 0 ? `${unassignedCount} temas sin asignar` : '✓ Todos asignados'}
+      {/* UA summary bar */}
+      <div className="oat-card flex items-center justify-between flex-wrap gap-3" style={{ padding: '0.625rem 1rem' }}>
+        <div className="flex items-center gap-4">
+          <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+            <strong style={{ color: 'var(--foreground)' }}>{uaDefs.length}</strong> UAs
           </span>
+          <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+            <strong style={{ color: 'var(--foreground)' }}>{totalHoras}</strong>/{uf.duracion}h
+          </span>
+          {unassignedCount > 0 ? (
+            <span className="oat-badge warning">{unassignedCount} temas sin asignar</span>
+          ) : (
+            <span className="oat-badge success">Todos asignados</span>
+          )}
         </div>
-        <button onClick={onCreateUA}
-          className="text-xs font-medium text-green-700 hover:text-green-800 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-md transition-colors">
-          + Nueva UA
+        <button
+          onClick={onCreateUA}
+          className="flex items-center gap-1.5 text-xs font-medium cursor-pointer"
+          style={{ background: 'none', border: 'none', padding: '0.375rem 0.75rem', color: 'var(--primary)', borderRadius: 'var(--radius-medium)', backgroundColor: 'color-mix(in srgb, var(--primary) 8%, transparent)' }}
+        >
+          <Plus size={13} /> Nueva UA
         </button>
       </div>
 
       {/* Content blocks */}
-      <div className="space-y-3">
+      <div className="space-y-2">
         {uf.contenidos.map((tema, temaIdx) => {
-          const assignedUA = temaAssignment.get(temaIdx);
-          const uaColor = assignedUA
-            ? UA_COLORS[uaDefs.findIndex(u => u.id === assignedUA) % UA_COLORS.length]
-            : null;
+          const assignedUA  = temaAssignment.get(temaIdx);
+          const uaIdx       = assignedUA ? uaDefs.findIndex(u => u.id === assignedUA) : -1;
+          const p           = uaIdx >= 0 ? UA_PALETTE[uaIdx % UA_PALETTE.length] : null;
 
           return (
-            <div key={temaIdx}
-              className={`border rounded-lg overflow-hidden transition-all ${
-                assignedUA
-                  ? `${uaColor?.border} ${uaColor?.bg}`
-                  : 'border-slate-200 bg-white'
-              }`}>
-              {/* Theme header */}
-              <div className="flex items-center justify-between px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-bold text-slate-400 w-8">T{temaIdx + 1}</span>
-                  <div>
-                    <div className="text-sm font-semibold text-slate-900">{tema.titulo}</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">{tema.items.length} contenidos</div>
+            <div
+              key={temaIdx}
+              className="rounded-lg border overflow-hidden transition-colors"
+              style={{
+                borderColor:     p ? p.mc + '50' : 'var(--border)',
+                backgroundColor: p ? p.light      : 'var(--card)',
+              }}
+            >
+              <div className="flex items-center justify-between px-4 py-2.5 gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <code className="text-[10px] font-bold flex-shrink-0" style={{ color: p ? p.mc : 'var(--muted-foreground)' }}>
+                    T{temaIdx + 1}
+                  </code>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold truncate" style={{ color: 'var(--foreground)' }}>{tema.titulo}</div>
+                    <div className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>{tema.items.length} contenidos</div>
                   </div>
                 </div>
-                {/* UA assignment dropdown */}
                 <select
                   value={assignedUA || ''}
                   onChange={e => onAssign(temaIdx, e.target.value || null)}
-                  className="text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 focus:ring-1 focus:ring-green-500 focus:border-green-500">
+                  style={{ fontSize: 'var(--text-8)', marginBlockStart: 0, width: 'auto', minWidth: '8rem', flexShrink: 0 }}
+                >
                   <option value="">Sin asignar</option>
                   {uaDefs.map(ua => (
                     <option key={ua.id} value={ua.id}>{ua.id} ({ua.horas}h)</option>
@@ -220,15 +261,22 @@ function Step1Contenidos({
                 </select>
               </div>
 
-              {/* Content items (collapsible) */}
-              <details className="group">
-                <summary className="px-4 py-1.5 text-[10px] text-slate-400 cursor-pointer hover:text-slate-600 border-t border-slate-100">
-                  Ver contenidos ▸
+              <details style={{ border: 'none', borderRadius: 0 }}>
+                <summary
+                  style={{
+                    padding: '0.375rem 1rem',
+                    fontSize: 'var(--text-8)',
+                    color: 'var(--muted-foreground)',
+                    borderTop: '1px solid var(--border)',
+                    backgroundColor: 'transparent',
+                  }}
+                >
+                  Ver contenidos ({tema.items.length})
                 </summary>
-                <div className="px-4 pb-3 space-y-1">
+                <div style={{ padding: '0.5rem 1rem 0.75rem 2.5rem' }} className="space-y-0.5">
                   {tema.items.map((item, itemIdx) => (
-                    <div key={itemIdx} className="text-xs text-slate-600 pl-11 py-0.5 leading-relaxed">
-                      • {item.texto}
+                    <div key={itemIdx} className="text-xs leading-relaxed" style={{ color: 'var(--muted-foreground)' }}>
+                      {item.texto}
                     </div>
                   ))}
                 </div>
@@ -240,36 +288,48 @@ function Step1Contenidos({
 
       {/* UA hour editors */}
       {uaDefs.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-lg p-4">
-          <h4 className="text-xs font-semibold text-slate-700 mb-3">Horas por UA</h4>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        <div className="oat-card" style={{ padding: '1rem' }}>
+          <h4 className="text-xs font-semibold mb-3" style={{ color: 'var(--foreground)' }}>Horas por UA</h4>
+          <div className="flex flex-wrap gap-2">
             {uaDefs.map((ua, i) => {
-              const color = UA_COLORS[i % UA_COLORS.length];
+              const p = UA_PALETTE[i % UA_PALETTE.length];
               return (
-                <div key={ua.id} className={`flex items-center gap-2 ${color.bg} ${color.border} border rounded-md px-3 py-2`}>
-                  <span className={`text-xs font-bold ${color.text}`}>{ua.id}</span>
+                <div
+                  key={ua.id}
+                  className="flex items-center gap-2 rounded-md px-3 py-1.5"
+                  style={{ backgroundColor: p.light, border: '1px solid ' + p.mc + '40' }}
+                >
+                  <code className="text-[11px] font-bold" style={{ color: p.mc }}>{ua.id}</code>
                   <input
                     type="number"
                     min={1}
                     max={uf.duracion}
                     value={ua.horas}
                     onChange={e => onSetHoras(ua.id, parseInt(e.target.value) || 0)}
-                    className="w-14 text-xs text-center border border-slate-200 rounded px-1 py-1 bg-white"
+                    style={{ width: '3.5rem', textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-8)', marginBlockStart: 0 }}
                   />
-                  <span className="text-[10px] text-slate-400">h</span>
-                  <span className="text-[10px] text-slate-400 ml-auto">{ua.temaIndices.length} temas</span>
+                  <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>h</span>
+                  <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>{ua.temaIndices.length} temas</span>
                   {uaDefs.length > 1 && (
-                    <button onClick={() => onRemoveUA(ua.id)}
-                      className="text-slate-300 hover:text-red-500 text-xs ml-1" title="Eliminar UA">✕</button>
+                    <button
+                      onClick={() => onRemoveUA(ua.id)}
+                      title="Eliminar UA"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)', display: 'flex', padding: '0.125rem' }}
+                    >
+                      <X size={12} />
+                    </button>
                   )}
                 </div>
               );
             })}
           </div>
           {totalHoras !== uf.duracion && (
-            <p className="text-[10px] text-amber-600 mt-2">
-              ⚠ Horas asignadas ({totalHoras}h) ≠ duración UF ({uf.duracion}h)
-            </p>
+            <div className="flex items-center gap-1.5 mt-2">
+              <AlertTriangle size={12} style={{ color: 'var(--warning)', flexShrink: 0 }} />
+              <p className="text-[10px]" style={{ color: 'var(--warning)' }}>
+                Horas asignadas ({totalHoras}h) distinto de duracion UF ({uf.duracion}h)
+              </p>
+            </div>
           )}
         </div>
       )}
@@ -288,13 +348,11 @@ function Step2Criterios({
   uf: BoeUFData;
   uaDefs: UADefinition[];
 }) {
-  // Build CE map from contenidos
   const ceMap = useMemo(() => buildContenidoCEMap(uf), [uf]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {uaDefs.map((ua, uaIdx) => {
-        // Collect all CEs from assigned temas
         const ceIdsSet = new Set<string>();
         ua.temaIndices.forEach(temaIdx => {
           const tema = uf.contenidos[temaIdx];
@@ -304,7 +362,6 @@ function Step2Criterios({
           });
         });
 
-        // Filter capacidades to only those with matching CEs
         const filteredCaps = uf.capacidades
           .map(cap => ({
             ...cap,
@@ -312,40 +369,46 @@ function Step2Criterios({
           }))
           .filter(cap => cap.criterios.length > 0);
 
-        const color = UA_COLORS[uaIdx % UA_COLORS.length];
+        const p = UA_PALETTE[uaIdx % UA_PALETTE.length];
 
         return (
-          <div key={ua.id} className={`border rounded-lg overflow-hidden ${color.border}`}>
-            <div className={`px-4 py-3 ${color.bg} flex items-center justify-between`}>
-              <div>
-                <span className={`text-sm font-bold ${color.text}`}>{ua.id}</span>
-                <span className="text-xs text-slate-500 ml-2">{ua.horas}h · {ua.temaIndices.length} temas</span>
+          <div
+            key={ua.id}
+            className="rounded-xl overflow-hidden"
+            style={{ border: '1px solid ' + p.mc + '50' }}
+          >
+            {/* UA header */}
+            <div className="flex items-center justify-between px-4 py-2.5" style={{ backgroundColor: p.light }}>
+              <div className="flex items-center gap-2">
+                <code className="text-xs font-bold" style={{ color: p.mc }}>{ua.id}</code>
+                <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{ua.horas}h &middot; {ua.temaIndices.length} temas</span>
               </div>
-              <span className="text-xs text-slate-500">
-                {filteredCaps.length} capacidades · {[...ceIdsSet].length} CEs
+              <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                {filteredCaps.length} capacidades &middot; {[...ceIdsSet].length} CEs
               </span>
             </div>
 
-            <div className="divide-y divide-slate-100">
+            {/* Capacidades / CEs */}
+            <div className="divide-y" style={{ divideColor: 'var(--border)' }}>
               {filteredCaps.map(cap => (
-                <div key={cap.codigo} className="px-4 py-3">
+                <div key={cap.codigo} className="px-4 py-3" style={{ backgroundColor: 'var(--card)' }}>
                   <div className="flex items-start gap-2 mb-2">
-                    <span className="text-xs font-bold text-slate-900 flex-shrink-0 w-6">{cap.codigo}</span>
-                    <p className="text-xs text-slate-700 leading-relaxed">{cap.texto}</p>
+                    <code className="text-xs font-bold flex-shrink-0 w-6" style={{ color: 'var(--foreground)' }}>{cap.codigo}</code>
+                    <p className="text-xs leading-relaxed" style={{ color: 'var(--foreground)' }}>{cap.texto}</p>
                   </div>
-                  <div className="ml-8 space-y-1.5">
+                  <div className="ml-6 space-y-1.5">
                     {cap.criterios.map(ce => {
                       const tipo = clasificarCE(ce.texto);
                       const tipColor = TIPOLOGIA_COLORS[tipo];
                       return (
                         <div key={ce.codigo} className="flex items-start gap-2">
-                          <span className="text-[10px] font-mono font-bold text-slate-400 flex-shrink-0 w-10 pt-0.5">
+                          <code className="text-[10px] font-bold flex-shrink-0 w-10 pt-0.5" style={{ color: 'var(--muted-foreground)', fontFamily: 'var(--font-mono)' }}>
                             {ce.codigo}
-                          </span>
-                          <span className={`inline-flex items-center px-1.5 py-0 rounded text-[9px] font-medium flex-shrink-0 ${tipColor.bg} ${tipColor.text}`}>
+                          </code>
+                          <span className={'inline-flex items-center px-1.5 rounded text-[9px] font-medium flex-shrink-0 ' + tipColor.bg + ' ' + tipColor.text}>
                             {tipColor.label}
                           </span>
-                          <p className="text-[11px] text-slate-600 leading-relaxed">{ce.texto}</p>
+                          <p className="text-[11px] leading-relaxed" style={{ color: 'var(--foreground)' }}>{ce.texto}</p>
                         </div>
                       );
                     })}
@@ -361,38 +424,14 @@ function Step2Criterios({
 }
 
 // ============================================
-// STEP 3: SdA BUILDER (placeholder for now)
+// STEP 3 HELPERS
 // ============================================
 
-/** Methodology options for SdA (from golden sample patterns) */
-const METODOLOGIAS = [
-  'Método interrogativo',
-  'Método expositivo-interrogativo',
-  'Expositivo con ejemplo aplicado',
-  'Aprendizaje basado en problemas',
-  'Expositivo-participativo',
-  'Estudio de caso',
-  'Análisis de textos y discusión guiada',
-  'Role-playing (simulación)',
-  'Método demostrativo',
-  'Investigación guiada y debate',
-  'Demostrativo en aula informática',
-  'Resolución de problemas',
-  'Demostrativo + práctica individual',
-  'Debate dirigido con análisis de dilemas',
-  'Clase de síntesis con participación activa',
-];
-
-/**
- * Auto-generate SdA drafts from the CE × contenido cross.
- * Strategy: 1 SdA per CE (or per small CE group), using literal BOE text.
- */
 function autoGenerateSdAs(
   uf: BoeUFData,
   ua: UADefinition,
   ceMap: Map<string, string[]>,
 ): SdADraft[] {
-  // 1. Collect CEs for this UA
   const ceIdsSet = new Set<string>();
   ua.temaIndices.forEach(temaIdx => {
     const tema = uf.contenidos[temaIdx];
@@ -402,7 +441,6 @@ function autoGenerateSdAs(
     });
   });
 
-  // 2. Get full CE objects in order
   const ceList: { id: string; texto: string; capId: string; capTexto: string }[] = [];
   uf.capacidades.forEach(cap => {
     cap.criterios.forEach(ce => {
@@ -412,22 +450,18 @@ function autoGenerateSdAs(
     });
   });
 
-  // 3. Calculate hours per SdA
-  const horasEval = Math.max(2, Math.round(ua.horas * 0.15)); // ~15% for evaluation
-  const horasAuto = Math.max(1, Math.round(ua.horas * 0.1));  // ~10% autonomous
-  const horasSdA = ua.horas - horasEval - horasAuto;
+  const horasEval = Math.max(2, Math.round(ua.horas * 0.15));
+  const horasAuto = Math.max(1, Math.round(ua.horas * 0.1));
+  const horasSdA  = ua.horas - horasEval - horasAuto;
 
-  // Group CEs: pair small CEs, keep complex ones solo
   const groups: typeof ceList[] = [];
   let i = 0;
   while (i < ceList.length) {
     const ce = ceList[i];
-    // "En supuestos/casos prácticos" are typically longer → solo
     if (ce.texto.length > 200 || /^en (supuestos?|casos?|diversas|situaciones)/i.test(ce.texto)) {
       groups.push([ce]);
       i++;
     } else if (i + 1 < ceList.length && ceList[i + 1].texto.length < 150) {
-      // Pair two short CEs
       groups.push([ce, ceList[i + 1]]);
       i += 2;
     } else {
@@ -438,42 +472,43 @@ function autoGenerateSdAs(
 
   const hoursPerSdA = groups.length > 0 ? Math.max(1, Math.round(horasSdA / groups.length)) : 2;
 
-  // 4. Generate SdA drafts
   let sdaNum = 1;
   return groups.map((ceGroup, gIdx) => {
-    const ceIds = ceGroup.map(ce => ce.id);
+    const ceIds     = ceGroup.map(ce => ce.id);
     const primaryCE = ceGroup[0];
-    const tipo = clasificarCE(primaryCE.texto);
+    const tipo      = clasificarCE(primaryCE.texto);
 
-    // Name: derive from CE text (first 60 chars + action focus)
-    const actionVerb = primaryCE.texto.match(/^(\w+)/)?.[1] || 'Actividad';
+    const actionVerb   = primaryCE.texto.match(/^(\w+)/)?.[1] || 'Actividad';
     const topicSnippet = primaryCE.texto.substring(
       primaryCE.texto.indexOf(' ') + 1,
       Math.min(primaryCE.texto.length, 80)
     ).replace(/[.,;:]$/, '');
 
-    // Methodology: pick based on tipología
-    const metIdx = gIdx % METODOLOGIAS.length;
+    const metIdx     = gIdx % METODOLOGIAS.length;
     const metodologia = tipo === 'destreza'
-      ? METODOLOGIAS[Math.min(metIdx + 3, METODOLOGIAS.length - 1)] // bias toward practical
+      ? METODOLOGIAS[Math.min(metIdx + 3, METODOLOGIAS.length - 1)]
       : tipo === 'habilidad'
-        ? METODOLOGIAS[Math.min(metIdx + 6, METODOLOGIAS.length - 1)] // bias toward debate/roleplay
-        : METODOLOGIAS[metIdx]; // knowledge → expositivo
+        ? METODOLOGIAS[Math.min(metIdx + 6, METODOLOGIAS.length - 1)]
+        : METODOLOGIAS[metIdx];
 
     return {
-      numero: sdaNum++,
-      fase: gIdx === 0 ? 'Inicio' as SdAFase : (gIdx === groups.length - 1 ? 'Cierre' as SdAFase : 'Desarrollo' as SdAFase),
-      nombre: `${actionVerb.charAt(0).toUpperCase() + actionVerb.slice(1)} ${topicSnippet}`,
-      objetivo: ceGroup.map(ce => ce.texto).join(' '),
+      numero:       sdaNum++,
+      fase:         gIdx === 0 ? 'Inicio' as SdAFase : (gIdx === groups.length - 1 ? 'Cierre' as SdAFase : 'Desarrollo' as SdAFase),
+      nombre:       actionVerb.charAt(0).toUpperCase() + actionVerb.slice(1) + ' ' + topicSnippet,
+      objetivo:     ceGroup.map(ce => ce.texto).join(' '),
       ceVinculados: ceIds,
       metodologia,
-      desarrollo: `El alumnado ${primaryCE.texto.charAt(0).toLowerCase() + primaryCE.texto.slice(1)}`,
+      desarrollo:   'El alumnado ' + primaryCE.texto.charAt(0).toLowerCase() + primaryCE.texto.slice(1),
       agrupamiento: 'Gran grupo',
-      recursos: 'Pizarra, material de aula, presentación multimedia.',
-      tiempo: Math.min(hoursPerSdA, 4),
+      recursos:     'Pizarra, material de aula, presentacion multimedia.',
+      tiempo:       Math.min(hoursPerSdA, 4),
     };
   });
 }
+
+// ============================================
+// STEP 3: SdA BUILDER
+// ============================================
 
 function Step3SdAs({
   uf,
@@ -488,10 +523,8 @@ function Step3SdAs({
 }) {
   const ceMap = useMemo(() => buildContenidoCEMap(uf), [uf]);
 
-  // Auto-generate SdAs for UAs that don't have any yet (runs once per UA)
   const [initialized, setInitialized] = useState<Set<string>>(new Set());
 
-  // useEffect to avoid render-time state mutation
   React.useEffect(() => {
     const toInit: string[] = [];
     uaDefs.forEach(ua => {
@@ -516,42 +549,50 @@ function Step3SdAs({
   }, [uaDefs, sdaState, initialized, uf, ceMap, onUpdateSdAs]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {uaDefs.map((ua, uaIdx) => {
-        const sdas = sdaState[ua.id] || [];
-        const color = UA_COLORS[uaIdx % UA_COLORS.length];
-        const totalHorasSdA = sdas.reduce((s, sda) => s + sda.tiempo, 0);
-        const horasEval = Math.max(2, Math.round(ua.horas * 0.15));
-        const horasAuto = Math.max(1, Math.round(ua.horas * 0.1));
+        const sdas       = sdaState[ua.id] || [];
+        const p          = UA_PALETTE[uaIdx % UA_PALETTE.length];
+        const horasEval  = Math.max(2, Math.round(ua.horas * 0.15));
+        const horasAuto  = Math.max(1, Math.round(ua.horas * 0.1));
         const horasTarget = ua.horas - horasEval - horasAuto;
+        const totalHorasSdA = sdas.reduce((s, sda) => s + sda.tiempo, 0);
+        const horasOk    = totalHorasSdA === horasTarget;
 
         return (
-          <div key={ua.id} className={`border rounded-lg overflow-hidden ${color.border}`}>
-            {/* UA Header */}
-            <div className={`px-4 py-3 ${color.bg} flex items-center justify-between`}>
+          <div
+            key={ua.id}
+            className="rounded-xl overflow-hidden"
+            style={{ border: '1px solid ' + p.mc + '50' }}
+          >
+            {/* UA header */}
+            <div className="flex items-center justify-between px-4 py-2.5 flex-wrap gap-2" style={{ backgroundColor: p.light }}>
               <div className="flex items-center gap-3">
-                <span className={`text-sm font-bold ${color.text}`}>{ua.id}</span>
-                <span className="text-xs text-slate-500">{ua.horas}h total</span>
+                <code className="text-sm font-bold" style={{ color: p.mc }}>{ua.id}</code>
+                <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{ua.horas}h total</span>
               </div>
-              <div className="flex items-center gap-4 text-[10px] text-slate-500">
+              <div className="flex items-center gap-3 text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
                 <span>Eval: {horasEval}h</span>
-                <span>Autónomo: {horasAuto}h</span>
-                <span className={totalHorasSdA === horasTarget ? 'text-green-600 font-medium' : 'text-amber-600 font-medium'}>
+                <span>Autonomo: {horasAuto}h</span>
+                <span className={horasOk ? '' : ''} style={{ color: horasOk ? 'var(--success)' : 'var(--warning)', fontWeight: 600 }}>
                   SdAs: {totalHorasSdA}/{horasTarget}h
                 </span>
                 <span>{sdas.length} SdAs</span>
               </div>
             </div>
 
-            {/* SdA List */}
-            <div className="divide-y divide-slate-100">
+            {/* SdA list */}
+            <div className="divide-y" style={{ backgroundColor: 'var(--card)' }}>
               {sdas.map((sda, sdaIdx) => (
-                <div key={sdaIdx} className="px-4 py-4 space-y-3">
-                  {/* SdA Header: number + name + time */}
+                <div key={sdaIdx} className="px-4 py-4 space-y-3" style={{ borderTop: '1px solid var(--border)' }}>
+                  {/* SdA header */}
                   <div className="flex items-start gap-3">
-                    <span className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500 flex-shrink-0">
+                    <div
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+                      style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}
+                    >
                       {sda.numero}
-                    </span>
+                    </div>
                     <div className="flex-1 min-w-0">
                       <input
                         type="text"
@@ -561,7 +602,10 @@ function Step3SdAs({
                           updated[sdaIdx] = { ...sda, nombre: e.target.value };
                           onUpdateSdAs(ua.id, updated);
                         }}
-                        className="w-full text-sm font-semibold text-slate-900 border-0 border-b border-transparent hover:border-slate-200 focus:border-green-500 focus:ring-0 px-0 py-0.5 bg-transparent"
+                        className="w-full text-sm font-semibold"
+                        style={{ background: 'transparent', border: 'none', borderBottom: '1px solid transparent', outline: 'none', paddingBlock: '0.125rem', color: 'var(--foreground)' }}
+                        onFocus={e => { e.target.style.borderBottomColor = 'var(--primary)'; }}
+                        onBlur={e => { e.target.style.borderBottomColor = 'transparent'; }}
                       />
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
@@ -576,42 +620,48 @@ function Step3SdAs({
                           updated[sdaIdx] = { ...sda, tiempo: parseFloat(e.target.value) || 1 };
                           onUpdateSdAs(ua.id, updated);
                         }}
-                        className="w-12 text-xs text-center border border-slate-200 rounded px-1 py-0.5"
+                        style={{ width: '3rem', textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-8)', marginBlockStart: 0 }}
                       />
-                      <span className="text-[10px] text-slate-400">h</span>
+                      <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>h</span>
                     </div>
                   </div>
 
                   {/* CE badges */}
                   <div className="flex flex-wrap gap-1 ml-9">
                     {sda.ceVinculados.map(ceId => (
-                      <span key={ceId} className="inline-flex items-center px-1.5 py-0 rounded bg-green-50 text-green-700 text-[10px] font-medium">
+                      <code
+                        key={ceId}
+                        className="oat-badge"
+                        style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 8%, transparent)', color: 'var(--primary)', fontFamily: 'var(--font-mono)' }}
+                      >
                         {ceId}
-                      </span>
+                      </code>
                     ))}
                   </div>
 
-                  {/* Editable fields */}
+                  {/* Fields */}
                   <div className="ml-9 space-y-2">
                     {/* Objetivo */}
                     <div>
-                      <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Objetivo</label>
+                      <label style={{ fontSize: 'var(--text-8)', color: 'var(--muted-foreground)', display: 'block', marginBlockStart: 0 }}>
+                        Objetivo
+                      </label>
                       <textarea
                         value={sda.objetivo}
+                        rows={2}
                         onChange={e => {
                           const updated = [...sdas];
                           updated[sdaIdx] = { ...sda, objetivo: e.target.value };
                           onUpdateSdAs(ua.id, updated);
                         }}
-                        rows={2}
-                        className="w-full text-xs text-slate-600 border border-slate-100 rounded-md px-2 py-1.5 hover:border-slate-200 focus:border-green-500 focus:ring-1 focus:ring-green-200 resize-none"
+                        style={{ marginBlockStart: '0.25rem', fontSize: 'var(--text-8)' }}
                       />
                     </div>
 
-                    {/* Fase + Metodología */}
+                    {/* Fase + Metodologia */}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Fase</label>
+                        <label style={{ fontSize: 'var(--text-8)', color: 'var(--muted-foreground)', display: 'block', marginBlockStart: 0 }}>Fase</label>
                         <select
                           value={sda.fase || 'Desarrollo'}
                           onChange={e => {
@@ -619,14 +669,15 @@ function Step3SdAs({
                             updated[sdaIdx] = { ...sda, fase: e.target.value as SdAFase };
                             onUpdateSdAs(ua.id, updated);
                           }}
-                          className="w-full text-xs border border-slate-100 rounded-md px-2 py-1.5 bg-white hover:border-slate-200 focus:border-green-500 focus:ring-1 focus:ring-green-200">
+                          style={{ fontSize: 'var(--text-8)', marginBlockStart: '0.25rem' }}
+                        >
                           <option value="Inicio">Inicio</option>
                           <option value="Desarrollo">Desarrollo</option>
                           <option value="Cierre">Cierre</option>
                         </select>
                       </div>
                       <div>
-                        <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Metodología</label>
+                        <label style={{ fontSize: 'var(--text-8)', color: 'var(--muted-foreground)', display: 'block', marginBlockStart: 0 }}>Metodologia</label>
                         <select
                           value={sda.metodologia}
                           onChange={e => {
@@ -634,7 +685,8 @@ function Step3SdAs({
                             updated[sdaIdx] = { ...sda, metodologia: e.target.value };
                             onUpdateSdAs(ua.id, updated);
                           }}
-                          className="w-full text-xs border border-slate-100 rounded-md px-2 py-1.5 bg-white hover:border-slate-200 focus:border-green-500 focus:ring-1 focus:ring-green-200">
+                          style={{ fontSize: 'var(--text-8)', marginBlockStart: '0.25rem' }}
+                        >
                           {METODOLOGIAS.map(m => <option key={m} value={m}>{m}</option>)}
                         </select>
                       </div>
@@ -642,7 +694,7 @@ function Step3SdAs({
 
                     {/* Agrupamiento */}
                     <div>
-                      <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Agrupamiento</label>
+                      <label style={{ fontSize: 'var(--text-8)', color: 'var(--muted-foreground)', display: 'block', marginBlockStart: 0 }}>Agrupamiento</label>
                       <select
                         value={sda.agrupamiento || 'Gran grupo'}
                         onChange={e => {
@@ -650,31 +702,32 @@ function Step3SdAs({
                           updated[sdaIdx] = { ...sda, agrupamiento: e.target.value };
                           onUpdateSdAs(ua.id, updated);
                         }}
-                        className="w-full text-xs border border-slate-100 rounded-md px-2 py-1.5 bg-white hover:border-slate-200 focus:border-green-500 focus:ring-1 focus:ring-green-200">
+                        style={{ fontSize: 'var(--text-8)', marginBlockStart: '0.25rem' }}
+                      >
                         {AGRUPAMIENTOS.map(a => <option key={a} value={a}>{a}</option>)}
                       </select>
                     </div>
 
-                    {/* Desarrollo */}
-                    <details className="group">
-                      <summary className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-slate-600">
-                        Desarrollo de la actividad ▸
+                    {/* Desarrollo (collapsible) */}
+                    <details>
+                      <summary style={{ fontSize: 'var(--text-8)', color: 'var(--muted-foreground)', cursor: 'pointer', border: 'none', background: 'none', padding: '0.125rem 0' }}>
+                        Desarrollo de la actividad
                       </summary>
                       <textarea
                         value={sda.desarrollo}
+                        rows={3}
                         onChange={e => {
                           const updated = [...sdas];
                           updated[sdaIdx] = { ...sda, desarrollo: e.target.value };
                           onUpdateSdAs(ua.id, updated);
                         }}
-                        rows={3}
-                        className="w-full mt-1 text-xs text-slate-600 border border-slate-100 rounded-md px-2 py-1.5 hover:border-slate-200 focus:border-green-500 focus:ring-1 focus:ring-green-200 resize-y"
+                        style={{ marginBlockStart: '0.25rem', fontSize: 'var(--text-8)', resize: 'vertical' }}
                       />
                     </details>
 
                     {/* Recursos */}
                     <div>
-                      <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Recursos</label>
+                      <label style={{ fontSize: 'var(--text-8)', color: 'var(--muted-foreground)', display: 'block', marginBlockStart: 0 }}>Recursos</label>
                       <input
                         type="text"
                         value={sda.recursos}
@@ -683,19 +736,23 @@ function Step3SdAs({
                           updated[sdaIdx] = { ...sda, recursos: e.target.value };
                           onUpdateSdAs(ua.id, updated);
                         }}
-                        className="w-full text-xs text-slate-600 border border-slate-100 rounded-md px-2 py-1.5 hover:border-slate-200 focus:border-green-500 focus:ring-1 focus:ring-green-200"
+                        style={{ fontSize: 'var(--text-8)', marginBlockStart: '0.25rem' }}
                       />
                     </div>
                   </div>
 
-                  {/* Delete SdA button */}
+                  {/* Delete SdA */}
                   <div className="ml-9">
                     <button
                       onClick={() => {
                         const updated = sdas.filter((_, idx) => idx !== sdaIdx);
                         onUpdateSdAs(ua.id, updated);
                       }}
-                      className="text-[10px] text-slate-300 hover:text-red-500 transition-colors">
+                      className="text-[10px] cursor-pointer transition-colors"
+                      style={{ background: 'none', border: 'none', padding: 0, color: 'var(--muted-foreground)' }}
+                      onMouseOver={e => { (e.target as HTMLElement).style.color = 'var(--danger)'; }}
+                      onMouseOut={e => { (e.target as HTMLElement).style.color = 'var(--muted-foreground)'; }}
+                    >
                       Eliminar SdA
                     </button>
                   </div>
@@ -703,14 +760,14 @@ function Step3SdAs({
               ))}
             </div>
 
-            {/* Add SdA button */}
-            <div className="px-4 py-2 bg-slate-50 border-t border-slate-100">
+            {/* Add SdA */}
+            <div className="px-4 py-2 border-t" style={{ borderColor: p.mc + '30', backgroundColor: p.light }}>
               <button
                 onClick={() => {
                   const newSda: SdADraft = {
                     numero: sdas.length + 1,
                     fase: 'Desarrollo',
-                    nombre: 'Nueva situación de aprendizaje',
+                    nombre: 'Nueva situacion de aprendizaje',
                     objetivo: '',
                     ceVinculados: [],
                     metodologia: METODOLOGIAS[0],
@@ -721,8 +778,10 @@ function Step3SdAs({
                   };
                   onUpdateSdAs(ua.id, [...sdas, newSda]);
                 }}
-                className="text-xs text-green-600 hover:text-green-700 font-medium">
-                + Añadir SdA
+                className="flex items-center gap-1.5 text-xs font-medium cursor-pointer"
+                style={{ background: 'none', border: 'none', color: p.mc, padding: '0.25rem 0' }}
+              >
+                <Plus size={13} /> Anadir SdA
               </button>
             </div>
           </div>
@@ -733,32 +792,19 @@ function Step3SdAs({
 }
 
 // ============================================
-// UA COLORS
-// ============================================
-
-const UA_COLORS = [
-  { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
-  { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
-  { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
-  { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
-  { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' },
-  { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-200' },
-];
-
-// ============================================
 // MAIN WIZARD COMPONENT
 // ============================================
 
 export function ProgramacionWizard({ uf, moduloCodigo, moduloNombre, moduloHoras, certificadoCodigo, certificadoNombre, certificadoDuracion }: ProgramacionWizardProps) {
-  const [step, setStep] = useState<WizardStep>(1);
+  const [step, setStep]       = useState<WizardStep>(1);
   const [sdaState, setSdaState] = useState<Record<string, SdADraft[]>>({});
 
   const handleUpdateSdAs = useCallback((uaId: string, sdas: SdADraft[]) => {
     setSdaState(prev => ({ ...prev, [uaId]: sdas }));
   }, []);
+
   const [uaDefs, setUaDefs] = useState<UADefinition[]>(() => {
-    // Auto-assign: split temas roughly in half between 2 UAs
-    const mid = Math.ceil(uf.contenidos.length / 2);
+    const mid   = Math.ceil(uf.contenidos.length / 2);
     const tema1 = Array.from({ length: mid }, (_, i) => i);
     const tema2 = Array.from({ length: uf.contenidos.length - mid }, (_, i) => i + mid);
     return [
@@ -767,7 +813,6 @@ export function ProgramacionWizard({ uf, moduloCodigo, moduloNombre, moduloHoras
     ];
   });
 
-  // Step 1: Assign a tema to a UA
   const handleAssign = useCallback((temaIdx: number, uaId: string | null) => {
     setUaDefs(prev => prev.map(ua => ({
       ...ua,
@@ -780,12 +825,7 @@ export function ProgramacionWizard({ uf, moduloCodigo, moduloNombre, moduloHoras
   const handleCreateUA = useCallback(() => {
     setUaDefs(prev => {
       const nextNum = prev.length + 1;
-      return [...prev, {
-        id: `UA${nextNum}`,
-        titulo: '',
-        horas: 10,
-        temaIndices: [],
-      }];
+      return [...prev, { id: 'UA' + nextNum, titulo: '', horas: 10, temaIndices: [] }];
     });
   }, []);
 
@@ -799,40 +839,26 @@ export function ProgramacionWizard({ uf, moduloCodigo, moduloNombre, moduloHoras
     ));
   }, [uf.duracion]);
 
-  // Validation: can advance?
   const canAdvance = useMemo(() => {
     if (step === 1) {
-      // All temas must be assigned and every UA must have at least 1 tema
       const assigned = uaDefs.reduce((s, ua) => s + ua.temaIndices.length, 0);
       return assigned === uf.contenidos.length && uaDefs.every(ua => ua.temaIndices.length > 0);
     }
-    if (step === 2) {
-      // At least 1 CE must exist per UA (sanity check)
-      return uaDefs.every(ua => ua.temaIndices.length > 0);
-    }
+    if (step === 2) return uaDefs.every(ua => ua.temaIndices.length > 0);
     return true;
   }, [step, uaDefs, uf.contenidos.length]);
 
-  // ============================================
-  // VALIDATION (Panel de Salud)
-  // ============================================
-
   const validationIssues = useMemo(() => {
     if (step !== 3 || uaDefs.length === 0) return [];
-    // Build a UF-like object the engine can consume
     const ceMap = buildContenidoCEMap(uf);
     const ufForValidation = {
       uas: uaDefs.map(ua => {
-        const sdas = sdaState[ua.id] || [];
+        const sdas     = sdaState[ua.id] || [];
         const horasEval = Math.max(2, Math.round(ua.horas * 0.15));
         const horasAuto = Math.max(1, Math.round(ua.horas * 0.1));
         const contenidoBlocks = ua.temaIndices.map(temaIdx => {
           const tema = uf.contenidos[temaIdx];
-          return {
-            lineas: (tema?.items || []).map(item => ({
-              ces: ceMap.get(item.texto) || [],
-            })),
-          };
+          return { lineas: (tema?.items || []).map(item => ({ ces: ceMap.get(item.texto) || [] })) };
         });
         const ceIds = new Set<string>();
         contenidoBlocks.forEach(b => b.lineas.forEach(l => l.ces.forEach((id: string) => ceIds.add(id))));
@@ -843,12 +869,7 @@ export function ProgramacionWizard({ uf, moduloCodigo, moduloNombre, moduloHoras
           uaAutonomoHoras: horasAuto,
           sdas,
           contenidoBlocks,
-          capacidades: [{
-            codigo: 'C-auto',
-            conocimientos: [...ceIds].map(id => ({ codigo: id })),
-            destrezas: [],
-            habilidades: [],
-          }],
+          capacidades: [{ codigo: 'C-auto', conocimientos: [...ceIds].map(id => ({ codigo: id })), destrezas: [], habilidades: [] }],
         };
       }),
     };
@@ -856,36 +877,37 @@ export function ProgramacionWizard({ uf, moduloCodigo, moduloNombre, moduloHoras
   }, [step, uaDefs, sdaState, uf]);
 
   return (
-    <div className="space-y-6">
-      {/* UF Header */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-        <div className="flex items-center gap-3 mb-2">
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700">
-            {uf.codigo}
-          </span>
-          <span className="text-xs text-slate-500">{moduloCodigo} · {uf.duracion}h</span>
+    <div className="space-y-4">
+
+      {/* UF header card */}
+      <div className="oat-card" style={{ padding: '1rem 1.25rem' }}>
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className="oat-badge success">{uf.codigo}</span>
+          <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{moduloCodigo} &middot; {uf.duracion}h</span>
         </div>
-        <h2 className="text-base font-semibold text-slate-900">{uf.denominacion}</h2>
-        <p className="text-xs text-slate-500 mt-1">
-          {uf.capacidades.length} capacidades · {uf.capacidades.reduce((s, c) => s + c.criterios.length, 0)} criterios · {uf.contenidos.length} bloques de contenido
+        <h2 className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>{uf.denominacion}</h2>
+        <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+          {uf.capacidades.length} capacidades &middot; {uf.capacidades.reduce((s, c) => s + c.criterios.length, 0)} criterios &middot; {uf.contenidos.length} bloques de contenido
         </p>
       </div>
 
-      {/* Step Indicator */}
-      <StepIndicator current={step} total={3} />
+      {/* Step indicator */}
+      <div className="oat-card" style={{ padding: '0.875rem 1.25rem' }}>
+        <StepIndicator current={step} total={3} />
+      </div>
 
-      {/* Step Content */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-slate-900">
+      {/* Step content */}
+      <div className="oat-card" style={{ padding: '1.25rem' }}>
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <h3 className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
             {step === 1 && 'Paso 1: Asignar contenidos BOE a Unidades de Aprendizaje'}
-            {step === 2 && 'Paso 2: Capacidades y Criterios de Evaluación (derivados)'}
+            {step === 2 && 'Paso 2: Capacidades y Criterios de Evaluacion (derivados)'}
             {step === 3 && 'Paso 3: Situaciones de Aprendizaje'}
           </h3>
-          <span className="text-[10px] text-slate-400">
+          <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
             {step === 1 && 'Regla Minerva: los contenidos determinan la estructura'}
-            {step === 2 && 'Auto-derivados del Paso 1 — solo lectura'}
-            {step === 3 && 'Construir desde Col1 × Col2'}
+            {step === 2 && 'Auto-derivados del Paso 1 -- solo lectura'}
+            {step === 3 && 'Construir desde Col1 x Col2'}
           </span>
         </div>
 
@@ -904,31 +926,26 @@ export function ProgramacionWizard({ uf, moduloCodigo, moduloNombre, moduloHoras
           <>
             <Step3SdAs uf={uf} uaDefs={uaDefs} sdaState={sdaState} onUpdateSdAs={handleUpdateSdAs} />
 
-            {/* Validation Summary Panel */}
-            <div className="mt-4 bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-2">
-              <h4 className="text-xs font-semibold text-slate-700">✓ Validación pre-export</h4>
-              {uaDefs.map((ua, i) => {
-                const sdas = sdaState[ua.id] || [];
-                const horasEval = Math.max(2, Math.round(ua.horas * 0.15));
-                const horasAuto = Math.max(1, Math.round(ua.horas * 0.1));
+            {/* Inline validation summary */}
+            <div className="mt-4 rounded-lg p-3 space-y-1.5" style={{ backgroundColor: 'var(--faint)', border: '1px solid var(--border)' }}>
+              <h4 className="text-xs font-semibold" style={{ color: 'var(--foreground)' }}>Validacion pre-export</h4>
+              {uaDefs.map(ua => {
+                const sdas       = sdaState[ua.id] || [];
+                const horasEval  = Math.max(2, Math.round(ua.horas * 0.15));
+                const horasAuto  = Math.max(1, Math.round(ua.horas * 0.1));
                 const horasTarget = ua.horas - horasEval - horasAuto;
-                const horasSdA = sdas.reduce((s, sda) => s + sda.tiempo, 0);
-                const horasOk = horasSdA === horasTarget;
-                const allCEsCovered = sdas.every(sda => sda.ceVinculados.length > 0);
-                const allNamed = sdas.every(sda => sda.nombre.trim().length > 3);
+                const horasSdA   = sdas.reduce((s, sda) => s + sda.tiempo, 0);
+                const horasOk    = horasSdA === horasTarget;
+                const allCEs     = sdas.every(sda => sda.ceVinculados.length > 0);
+                const allNamed   = sdas.every(sda => sda.nombre.trim().length > 3);
+                const mkColor    = (ok: boolean) => ({ color: ok ? 'var(--success)' : 'var(--warning)' });
                 return (
-                  <div key={ua.id} className="flex items-center gap-3 text-xs">
-                    <span className="font-medium text-slate-700 w-8">{ua.id}</span>
-                    <span className={horasOk ? 'text-green-600' : 'text-amber-600'}>
-                      {horasOk ? '✓' : '⚠'} Horas: {horasSdA}/{horasTarget}h
-                    </span>
-                    <span className={allCEsCovered ? 'text-green-600' : 'text-amber-600'}>
-                      {allCEsCovered ? '✓' : '⚠'} CEs vinculados
-                    </span>
-                    <span className={allNamed ? 'text-green-600' : 'text-amber-600'}>
-                      {allNamed ? '✓' : '⚠'} Nombres
-                    </span>
-                    <span className="text-slate-400">{sdas.length} SdAs</span>
+                  <div key={ua.id} className="flex items-center gap-3 text-xs flex-wrap">
+                    <code style={{ color: 'var(--foreground)', fontFamily: 'var(--font-mono)', fontWeight: 600, width: '2rem' }}>{ua.id}</code>
+                    <span style={mkColor(horasOk)}>Horas: {horasSdA}/{horasTarget}h</span>
+                    <span style={mkColor(allCEs)}>CEs vinculados</span>
+                    <span style={mkColor(allNamed)}>Nombres</span>
+                    <span style={{ color: 'var(--muted-foreground)' }}>{sdas.length} SdAs</span>
                   </div>
                 );
               })}
@@ -937,8 +954,7 @@ export function ProgramacionWizard({ uf, moduloCodigo, moduloNombre, moduloHoras
         )}
       </div>
 
-
-      {/* Health Panel — visible only on Step 3 */}
+      {/* Health panel -- Step 3 only */}
       {step === 3 && <HealthPanel issues={validationIssues} />}
 
       {/* Navigation */}
@@ -946,83 +962,95 @@ export function ProgramacionWizard({ uf, moduloCodigo, moduloNombre, moduloHoras
         <button
           onClick={() => setStep(s => Math.max(1, s - 1) as WizardStep)}
           disabled={step === 1}
-          className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-            step === 1
-              ? 'text-slate-300 cursor-not-allowed'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}>
-          ← Anterior
+          className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg transition-colors cursor-pointer"
+          style={{
+            background: 'none',
+            border: 'none',
+            color: step === 1 ? 'var(--muted-foreground)' : 'var(--foreground)',
+            cursor: step === 1 ? 'not-allowed' : 'pointer',
+            opacity: step === 1 ? 0.4 : 1,
+          }}
+        >
+          Anterior
         </button>
 
-        <div className="flex items-center gap-3">
-          {step < 3 ? (
-            <button
-              onClick={() => setStep(s => Math.min(3, s + 1) as WizardStep)}
-              disabled={!canAdvance}
-              className={`px-5 py-2 text-sm font-semibold rounded-lg transition-all ${
-                canAdvance
-                  ? 'bg-green-600 text-white hover:bg-green-700 shadow-sm'
-                  : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-              }`}>
-              Siguiente →
-            </button>
-          ) : (
-            <button
-              onClick={() => {
-                // Build export data from wizard state
-                const exportUAs: UAExport[] = uaDefs.map(ua => {
-                  const sdas = sdaState[ua.id] || [];
-                  const horasEval = Math.max(2, Math.round(ua.horas * 0.15));
-                  const horasAuto = Math.max(1, Math.round(ua.horas * 0.1));
-                  // Collect CE IDs for this UA
-                  const ceMap = buildContenidoCEMap(uf);
-                  const ceIds = new Set<string>();
-                  ua.temaIndices.forEach(temaIdx => {
-                    const tema = uf.contenidos[temaIdx];
-                    tema?.items.forEach(item => {
-                      (ceMap.get(item.texto) || []).forEach(id => ceIds.add(id));
-                    });
+        {step < 3 ? (
+          <button
+            onClick={() => setStep(s => Math.min(3, s + 1) as WizardStep)}
+            disabled={!canAdvance}
+            style={{
+              padding: '0.5rem 1.25rem',
+              fontSize: 'var(--text-7)',
+              fontWeight: 'var(--font-semibold)',
+              borderRadius: 'var(--radius-medium)',
+              border: 'none',
+              cursor: canAdvance ? 'pointer' : 'not-allowed',
+              backgroundColor: canAdvance ? 'var(--primary)' : 'var(--muted)',
+              color: canAdvance ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
+              transition: 'background-color var(--transition-fast)',
+            }}
+          >
+            Siguiente
+          </button>
+        ) : (
+          <button
+            onClick={() => {
+              const exportUAs: UAExport[] = uaDefs.map(ua => {
+                const sdas      = sdaState[ua.id] || [];
+                const horasEval = Math.max(2, Math.round(ua.horas * 0.15));
+                const horasAuto = Math.max(1, Math.round(ua.horas * 0.1));
+                const ceMap     = buildContenidoCEMap(uf);
+                const ceIds     = new Set<string>();
+                ua.temaIndices.forEach(temaIdx => {
+                  const tema = uf.contenidos[temaIdx];
+                  tema?.items.forEach(item => {
+                    (ceMap.get(item.texto) || []).forEach(id => ceIds.add(id));
                   });
-                  return {
-                    id: ua.id,
-                    titulo: ua.temaIndices.map(i => uf.contenidos[i]?.titulo || '').join('; '),
-                    horas: ua.horas,
-                    horasEvaluacion: horasEval,
-                    horasAutonomo: horasAuto,
-                    horasSdA: ua.horas - horasEval - horasAuto,
-                    temaIndices: ua.temaIndices,
-                    capacidadIds: [...ceIds],
-                    sdas: sdas.map(s => ({
-                      numero: s.numero,
-                      fase: s.fase,
-                      nombre: s.nombre,
-                      objetivo: s.objetivo,
-                      ceVinculados: s.ceVinculados,
-                      metodologia: s.metodologia,
-                      agrupamiento: s.agrupamiento,
-                      desarrollo: s.desarrollo,
-                      recursos: s.recursos,
-                      tiempo: s.tiempo,
-                    })),
-                  };
                 });
-                const exportData: AnexoIVExportData = {
-                  certificado: { codigo: certificadoCodigo, nombre: certificadoNombre, duracion: certificadoDuracion },
-                  modulo: { codigo: moduloCodigo, nombre: moduloNombre, horas: moduloHoras },
-                  uf,
-                  uas: exportUAs,
+                return {
+                  id:            ua.id,
+                  titulo:        ua.temaIndices.map(i => uf.contenidos[i]?.titulo || '').join('; '),
+                  horas:         ua.horas,
+                  horasEvaluacion: horasEval,
+                  horasAutonomo:  horasAuto,
+                  horasSdA:       ua.horas - horasEval - horasAuto,
+                  temaIndices:    ua.temaIndices,
+                  capacidadIds:   [...ceIds],
+                  sdas:           sdas.map(s => ({
+                    numero: s.numero, fase: s.fase, nombre: s.nombre, objetivo: s.objetivo,
+                    ceVinculados: s.ceVinculados, metodologia: s.metodologia, agrupamiento: s.agrupamiento,
+                    desarrollo: s.desarrollo, recursos: s.recursos, tiempo: s.tiempo,
+                  })),
                 };
-                downloadAnexoIVDocx(exportData).catch(err => {
-                  console.error('Export failed:', err);
-                  alert('Error al exportar: ' + (err?.message || 'Unknown error'));
-                });
-              }}
-              className="px-5 py-2 text-sm font-semibold rounded-lg bg-green-600 text-white hover:bg-green-700 shadow-sm flex items-center gap-2">
-              <span>📄</span> Generar Anexo IV (.docx)
-            </button>
-          )}
-        </div>
+              });
+              const exportData: AnexoIVExportData = {
+                certificado: { codigo: certificadoCodigo, nombre: certificadoNombre, duracion: certificadoDuracion },
+                modulo:      { codigo: moduloCodigo, nombre: moduloNombre, horas: moduloHoras },
+                uf,
+                uas: exportUAs,
+              };
+              downloadAnexoIVDocx(exportData).catch(err => {
+                console.error('Export failed:', err);
+                alert('Error al exportar: ' + (err?.message || 'Unknown error'));
+              });
+            }}
+            className="flex items-center gap-2 cursor-pointer"
+            style={{
+              padding: '0.5rem 1.25rem',
+              fontSize: 'var(--text-7)',
+              fontWeight: 'var(--font-semibold)',
+              borderRadius: 'var(--radius-medium)',
+              border: 'none',
+              backgroundColor: 'var(--primary)',
+              color: 'var(--primary-foreground)',
+              transition: 'background-color var(--transition-fast)',
+            }}
+          >
+            <FileText size={14} /> Generar Anexo IV (.docx)
+          </button>
+        )}
       </div>
+
     </div>
   );
 }
