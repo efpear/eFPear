@@ -259,7 +259,7 @@ function GanttView({ entries }: { entries: ModuleEntry[] }) {
       </div>
 
       {/* Module rows */}
-      <div style={{ divideColor: 'var(--border)' }}>
+      <div >
         {entries.map(({ mod, inicio, fin, semanas, p }) => {
           const leftPct  = toPct(inicio);
           const widthPct = Math.max(1, toPct(fin) - leftPct);
