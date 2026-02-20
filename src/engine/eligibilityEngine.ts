@@ -77,7 +77,7 @@ export function evaluarElegibilidad(
   requisitos: BoeRequirements
 ): EligibilityResult {
   const mensajes: EligibilityMessage[] = [];
-  let status: EligibilityStatus = 'ELEGIBLE';
+  let status: EligibilityStatus = 'ELIGIBLE';
   let tieneTitulacion = false;
   let experienciaRequerida = 0;
 
@@ -92,7 +92,7 @@ export function evaluarElegibilidad(
     experienciaRequerida = requisitos.experienciaSinTitulacion;
   } else {
     // No titulacion + no permite expertos = NO ELEGIBLE
-    status = 'NO_ELEGIBLE';
+    status = 'NO_ELIGIBLE';
     return {
       status,
       mensajes,
@@ -105,7 +105,7 @@ export function evaluarElegibilidad(
   mensajes.push(...expResult.mensajes);
 
   if (!expResult.cumple) {
-    status = 'NO_ELEGIBLE';
+    status = 'NO_ELIGIBLE';
     return {
       status,
       mensajes,
@@ -127,7 +127,7 @@ export function evaluarElegibilidad(
 
   if (!specResult.cumple) {
     // Missing specific requirement downgrades to NO_ELEGIBLE
-    status = 'NO_ELEGIBLE';
+    status = 'NO_ELIGIBLE';
     return {
       status,
       mensajes,
@@ -136,7 +136,7 @@ export function evaluarElegibilidad(
   }
 
   // ---- BUILD RESULT ----
-  const resumen = status === 'ELEGIBLE'
+  const resumen = status === 'ELIGIBLE'
     ? 'Elegible para ' + requisitos.codigoMF + ' (' + requisitos.nombreMF + ').'
     : 'Elegible con condiciones para ' + requisitos.codigoMF + ': necesita acreditar competencia docente.';
 

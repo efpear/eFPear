@@ -44,16 +44,16 @@ function buildProfile(
 
 // Status config
 const STATUS_CFG = {
-  ELEGIBLE:    { dot: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', label: 'Elegible' },
+  ELIGIBLE:    { dot: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', label: 'Elegible' },
   CONDICIONAL: { dot: 'bg-amber-400',   badge: 'bg-amber-50 text-amber-700 border-amber-200',      label: 'Condicional' },
-  NO_ELEGIBLE: { dot: 'bg-slate-300',   badge: 'bg-slate-50 text-slate-500 border-slate-200',      label: 'No elegible' },
+  NO_ELIGIBLE: { dot: 'bg-slate-300',   badge: 'bg-slate-50 text-slate-500 border-slate-200',      label: 'No elegible' },
 } as const;
 
 // ============================================================
 // SUB-COMPONENTS
 // ============================================================
 
-function StatusBadge({ status }: { status: 'ELEGIBLE' | 'CONDICIONAL' | 'NO_ELEGIBLE' }) {
+function StatusBadge({ status }: { status: 'ELIGIBLE' | 'CONDICIONAL' | 'NO_ELIGIBLE' }) {
   const cfg = STATUS_CFG[status];
   return (
     <span className={'text-[10px] font-semibold px-2 py-0.5 rounded-full border ' + cfg.badge}>
@@ -72,7 +72,7 @@ function MFRow({
 }) {
   const { entry, result: res } = result;
   const cfg = STATUS_CFG[res.status];
-  const canPlan = res.status === 'ELEGIBLE' || res.status === 'CONDICIONAL';
+  const canPlan = res.status === 'ELIGIBLE' || res.status === 'CONDICIONAL';
 
   return (
     <div className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 transition-colors">
@@ -126,7 +126,7 @@ function ResultsPanel({
   }
 
   // Summary counts
-  const nElegible    = results.filter(r => r.result.status === 'ELEGIBLE').length;
+  const nElegible    = results.filter(r => r.result.status === 'ELIGIBLE').length;
   const nCondicional = results.filter(r => r.result.status === 'CONDICIONAL').length;
 
   return (
@@ -210,8 +210,8 @@ export function EligibilityCheck({ onPlanificar }: EligibilityCheckProps) {
       entry,
       result: evaluarElegibilidad(perfil, entry),
     }));
-    // Sort: ELEGIBLE first, then CONDICIONAL, then NO_ELEGIBLE
-    const order = { ELEGIBLE: 0, CONDICIONAL: 1, NO_ELEGIBLE: 2 };
+    // Sort: ELIGIBLE first, then CONDICIONAL, then NO_ELIGIBLE
+    const order = { ELIGIBLE: 0, CONDICIONAL: 1, NO_ELIGIBLE: 2 };
     catalogResults.sort((a, b) => order[a.result.status] - order[b.result.status]);
     setResults(catalogResults);
   }, [titulacionInput, nivelMaximo, experiencia, familia, tieneCap, tieneSsce, horasDocencia, idiomaIngles]);
